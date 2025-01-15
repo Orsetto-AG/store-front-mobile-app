@@ -154,6 +154,7 @@ const ProductDetail = ({ route, navigation }) => {
                         <Text style={styles.extraTextHeader}>{product.descriptionHeader}</Text>
                         <Text style={styles.extraText}>{product.description}</Text>
                     </View>
+
                 </View>
             </Animated.ScrollView>
             <MediaModal
