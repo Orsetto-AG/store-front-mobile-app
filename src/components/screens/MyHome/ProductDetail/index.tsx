@@ -4,6 +4,8 @@ import LinearGradient from 'react-native-linear-gradient';
 import {useDispatch, useSelector} from "react-redux";
 import {addFavorite, removeFavorite} from "../../../redux/slices/favoritesSlice.ts";
 import MediaModal from "./MediaModal/MediaModal.tsx";
+import moment from "moment/moment";
+
 const ProductDetail = ({ route, navigation }) => {
     const { product } = route.params; // MyHome'dan gelen ürün verisi
     const dispatch = useDispatch();
@@ -12,28 +14,46 @@ const ProductDetail = ({ route, navigation }) => {
     const favorites = useSelector(state => state.favorites.favorites);
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedMedia, setSelectedMedia] = useState({ url: '', isVideo: false });
+    const listingDate = moment(product.listedDate);
+    const renderImage = ({ item, index }) => {
+        const isVideo = item.endsWith('.mp4') || item.endsWith('.mov');
+        const firstImage = product.images[0]; // İlk fotoğrafı almak için
 
-    const renderImage = ({ item }) => (
-        <TouchableOpacity
-            onPress={() => {
-                setSelectedMedia({
-                    url: item,
-                    isVideo: item.endsWith('.mp4') || item.endsWith('.mov')
-                });
-                setModalVisible(true);
-            }}
-        >
-            <Image
-                source={{ uri: item }}
-                style={[styles.productImage, { width: screenWidth }]}
-            />
-            {(item.endsWith('.mp4') || item.endsWith('.mov')) && (
-                <View style={styles.videoIndicator}>
-                    <Text style={styles.videoIcon}>▶</Text>
-                </View>
-            )}
-        </TouchableOpacity>
-    );
+        return (
+            <TouchableOpacity
+                onPress={() => {
+                    setSelectedMedia({
+                        url: item,
+                        isVideo,
+                    });
+                    setModalVisible(true);
+                }}
+                style={{ position: 'relative' }}
+            >
+                {/* Eğer video ise ilk fotoğrafı arka plan olarak göster */}
+                <Image
+                    source={{ uri: isVideo ? firstImage : item }}
+                    style={[styles.productImage, { width: screenWidth }]}
+                />
+
+                {/* Eğer video ise Play ikonu ve alt sağ köşe tasarımı */}
+                {isVideo && (
+                    <>
+                        {/* Play butonu */}
+                        <View style={styles.videoOverlay}>
+                            <Text style={styles.playIcon}>▶</Text>
+                        </View>
+
+                        {/* Sağ alt köşe tasarımı */}
+                        <View style={styles.videoTag}>
+                            <Text style={styles.videoTagText}>Video</Text>
+                        </View>
+                    </>
+                )}
+            </TouchableOpacity>
+        );
+    };
+
 
     // Header arka plan rengi ve opaklık animasyonu
     const headerBackgroundColor = scrollY.interpolate({
@@ -126,36 +146,13 @@ const ProductDetail = ({ route, navigation }) => {
                         <Text style={styles.productRating}>★ {product.rating}</Text>
                         <Text style={styles.productPrice}>{product.price} TL</Text>
                     </View>
-                    <Text style={styles.productDescription}>{product.description}</Text>
+                    <Text style={styles.productDescription}>Listed Date: {listingDate.format('DD.MM.YYYY HH:mm')}</Text>
+                    <Text style={styles.productDescription}>Buy now price {product.lastBid}</Text>
 
                     {/* Ek Bilgiler */}
                     <View style={styles.extraInfo}>
-                        <Text style={styles.extraText}>Yarın kargoda</Text>
-                        <Text style={styles.extraText}>300 TL üzeri kargo bedava</Text>
-                    </View>
-                    <View style={styles.extraInfo}>
-                        <Text style={styles.extraText}>Yarın kargoda</Text>
-                        <Text style={styles.extraText}>300 TL üzeri kargo bedava</Text>
-                    </View>
-                    <View style={styles.extraInfo}>
-                        <Text style={styles.extraText}>Yarın kargoda</Text>
-                        <Text style={styles.extraText}>300 TL üzeri kargo bedava</Text>
-                    </View>
-                    <View style={styles.extraInfo}>
-                        <Text style={styles.extraText}>Yarın kargoda</Text>
-                        <Text style={styles.extraText}>300 TL üzeri kargo bedava</Text>
-                    </View>
-                    <View style={styles.extraInfo}>
-                        <Text style={styles.extraText}>Yarın kargoda</Text>
-                        <Text style={styles.extraText}>300 TL üzeri kargo bedava</Text>
-                    </View>
-                    <View style={styles.extraInfo}>
-                        <Text style={styles.extraText}>Yarın kargoda</Text>
-                        <Text style={styles.extraText}>300 TL üzeri kargo bedava</Text>
-                    </View>
-                    <View style={styles.extraInfo}>
-                        <Text style={styles.extraText}>Yarın kargoda</Text>
-                        <Text style={styles.extraText}>300 TL üzeri kargo bedava</Text>
+                        <Text style={styles.extraTextHeader}>{product.descriptionHeader}</Text>
+                        <Text style={styles.extraText}>{product.description}</Text>
                     </View>
                 </View>
             </Animated.ScrollView>
@@ -266,10 +263,6 @@ const styles = StyleSheet.create({
         shadowRadius: 2,
         elevation: 3,
     },
-    productImage: {
-        height: 300,
-        resizeMode: 'cover',
-    },
     detailsContainer: {
         padding: 15,
     },
@@ -311,6 +304,11 @@ const styles = StyleSheet.create({
         color: '#444',
         marginBottom: 5,
     },
+    extraTextHeader: {
+        fontSize: 18,
+        color: '#232323',
+        marginBottom: 5,
+    },
     bottomBar: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -337,6 +335,41 @@ const styles = StyleSheet.create({
     addToCartText: {
         fontSize: 16,
         color: '#fff',
+        fontWeight: 'bold',
+    },
+    productImage: {
+        height: 300,
+        resizeMode: 'cover',
+    },
+    videoOverlay: {
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        transform: [{ translateX: -20 }, { translateY: -20 }],
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    playIcon: {
+        color: 'white',
+        fontSize: 20,
+        fontWeight: 'bold',
+    },
+    videoTag: {
+        position: 'absolute',
+        bottom: 10,
+        right: 10,
+        backgroundColor: '#FFA500',
+        paddingVertical: 5,
+        paddingHorizontal: 10,
+        borderRadius: 5,
+    },
+    videoTagText: {
+        color: 'white',
+        fontSize: 14,
         fontWeight: 'bold',
     },
 });

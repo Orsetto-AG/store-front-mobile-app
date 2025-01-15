@@ -25,7 +25,7 @@ const MediaModal = ({ isVisible, onClose, mediaList, initialIndex }: MediaModalP
     const [videoPositions, setVideoPositions] = useState<Record<number, number>>({});
     const translateY = useRef(new Animated.Value(0)).current;
     const videoRef = useRef<Video | null>(null);
-
+    const screenWidth = Dimensions.get('window').width;
     const handleGesture = Animated.event(
         [{ nativeEvent: { translationY: translateY } }],
         { useNativeDriver: false }
@@ -125,6 +125,11 @@ const MediaModal = ({ isVisible, onClose, mediaList, initialIndex }: MediaModalP
                                 setCurrentIndex(index);
                             }
                         }}
+                        getItemLayout={(data, index) => ({
+                            length: screenWidth, // Her öğenin genişliği
+                            offset: screenWidth * index, // Öğenin başlangıç konumu
+                            index,
+                        })}
                     />
                     <View style={styles.footer}>
                         <Text style={styles.footerText}>{`Media ${currentIndex + 1} of ${mediaList.length}`}</Text>

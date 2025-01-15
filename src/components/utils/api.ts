@@ -19,7 +19,7 @@ const api = {
             images: [
                 'https://productimages.hepsiburada.net/s/473/375-375/110000516217504.jpg',
                 'https://productimages.hepsiburada.net/s/473/375-375/110000516217504.jpg',
-                'https://productimages.hepsiburada.net/s/473/375-375/110000516217504.jpg',
+                'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
             ],
             media: [
                 { type: 'image', uri: 'https://productimages.hepsiburada.net/s/473/375-375/110000516217504.jpg' },
@@ -28,6 +28,14 @@ const api = {
             ],
             rating: 4.5,
             price: '50.000',
+            listedDate: '2025-01-07T12:00:00Z', // Listed within 3 days
+            expirationDate: '2025-01-15T12:00:00Z', // Valid for 8 days
+            lastBid: '50.000',
+            description: 'Kullanisli\n' +
+                'Sesinizi kullanarak filmler bulabilir, uygulamalari yayinlayabilir, müzik çalabilir ve TV\'yi kontrol edebilirsiniz.\n' +
+                'Google\'a "ne izlemeliyim?" diyerek belirli bir baslik bulmasini, türe göre arama yapmasini veya size özel öneriler sunmasini isteyebilirsiniz. Hatta karsilasma sonuclarini ögrenebilir, akilli ev cihazlarini kontrol edebilir ve daha pek cok fazlasini yapabilirsiniz.'
+           , descriptionHeader: 'TV\'niz Her Zaman Oldugundan Daha\n' +
+                'Kullanisli',
         },
         { id: 22, name: 'iPhone 14', image: 'https://productimages.hepsiburada.net/s/473/375-375/110000516217504.jpg', rating: 4.5, price: '50.000' },
         { id: 33, name: 'iPhone 14', image: 'https://productimages.hepsiburada.net/s/473/375-375/110000516217504.jpg', rating: 4.5, price: '50.000' },
