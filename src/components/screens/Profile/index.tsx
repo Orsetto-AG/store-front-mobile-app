@@ -8,9 +8,7 @@ const Profile = () => {
     const dispatch = useDispatch();
 
     const handleLogout = async () => {
-        // Token'ı temizle
         await AsyncStorage.removeItem('token');
-        // Redux state'den çıkış işlemi
         dispatch(logout());
     };
 
