@@ -99,9 +99,8 @@ const authSlice = createSlice({
             state.error = null;
             state.pendingVerification = false;
             state.pendingEmail = null;
-            // AsyncStorage'daki token'ı temizle
-            AsyncStorage.removeItem('token');
         },
+
         clearError: (state) => {
             state.error = null;
         },

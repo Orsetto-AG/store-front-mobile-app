@@ -48,7 +48,7 @@ const HomeStackScreen = () => {
           gestureEnabled: false,
           swipeEnabled: false,
         }}
-        name="Home"
+        name="MyHome"
         component={MyHome}
       />
         <StackNavigator.Screen
@@ -231,7 +231,7 @@ const CategoriesStackScreen = () => {
 const SearchStackScreen = () => {
   return (
     <Tab.Navigator
-      initialRouteName="Home"
+      initialRouteName="MyHome"
       screenOptions={({route}) => ({
         safeAreaInset: {bottom: 'never', top: 'never'},
         labelStyle: {
