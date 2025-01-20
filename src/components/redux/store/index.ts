@@ -10,28 +10,30 @@ const sagaMiddleware = createSagaMiddleware();
 
 // Persist Configuration
 const persistConfig = {
-    key: 'root', // Root key for persistence
-    storage: AsyncStorage, // Use AsyncStorage for persistence
-    whitelist: ['favorites'], // Specify which reducers to persist (e.g., favorites)
+    key: 'root',
+    storage: AsyncStorage,
+    whitelist: ['auth', 'favorites'],
 };
 
-// Create a persisted reducer
+// Persisted Reducer
 const persistedReducer = persistReducer(persistConfig, rootReducer);
 
-// Configure the Redux store with persisted reducer and saga middleware
+// Redux Store Configuration
 const store = configureStore({
     reducer: persistedReducer,
     middleware: (getDefaultMiddleware) =>
         getDefaultMiddleware({
-            thunk: false, // Disable thunk since we're using saga
-            serializableCheck: false, // Disable serializable check for redux-persist compatibility
+            thunk: true, // Enable thunk middleware
+            serializableCheck: false,
         }).concat(sagaMiddleware),
 });
 
-// Run root saga
+// Run Redux-Saga
 sagaMiddleware.run(rootSaga);
 
-// Persistor for the store
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+
 export const persistor = persistStore(store);
 
 export default store;

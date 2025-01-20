@@ -10,7 +10,8 @@ import Profile from '../../screens/Profile';
 import Categories from '../../screens/Categories';
 import MyHome from '../../screens/MyHome';
 import CategoryProducts from '../../screens/Categories/CategoryProducts';
-import ProductDetail from "../../screens/MyHome/ProductDetail";
+import ProductDetail from '../../screens/MyHome/ProductDetail';
+
 
 const HomeStackScreen = () => {
   return (
@@ -33,7 +34,7 @@ const HomeStackScreen = () => {
       options={{
         gestureEnabled: false,
       }}
-      initialRouteName="MyHome">
+      initialRouteName="Login">
       <StackNavigator.Screen
         navigationOptions={{
           drawerLockMode: 'locked-closed',
@@ -47,7 +48,7 @@ const HomeStackScreen = () => {
           gestureEnabled: false,
           swipeEnabled: false,
         }}
-        name="MyHome"
+        name="Home"
         component={MyHome}
       />
         <StackNavigator.Screen
@@ -66,6 +67,7 @@ const HomeStackScreen = () => {
             name="CategoryProducts"
             component={CategoryProducts}
         />
+
         <StackNavigator.Screen
             navigationOptions={{
                 drawerLockMode: 'locked-closed',
@@ -148,7 +150,7 @@ const CartStackScreen = () => {
       options={{
         gestureEnabled: false,
       }}
-      initialRouteName="Home">
+      initialRouteName="Login">
       <StackNavigator.Screen
         navigationOptions={{
           drawerLockMode: 'locked-closed',

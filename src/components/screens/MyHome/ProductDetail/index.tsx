@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Image, FlatList, Platform, Dimensions, TouchableOpacity, TextInput, Animated } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import {useDispatch, useSelector} from "react-redux";
-import {addFavorite, removeFavorite} from "../../../redux/slices/favoritesSlice.ts";
-import MediaModal from "./MediaModal/MediaModal.tsx";
-import moment from "moment/moment";
+import {useDispatch, useSelector} from 'react-redux';
+import {addFavorite, removeFavorite} from '../../../redux/slices/favoritesSlice.ts';
+import MediaModal from './MediaModal/MediaModal.tsx';
+import moment from 'moment/moment';
 
 const ProductDetail = ({ route, navigation }) => {
     const { product } = route.params; // MyHome'dan gelen ürün verisi
@@ -110,7 +110,7 @@ const ProductDetail = ({ route, navigation }) => {
                     >
                         <Text style={{
                             fontSize: 20,
-                            color: favorites.find(fav => fav.id === product.id) ? '#FF6200' : '#ccc'
+                            color: favorites.find(fav => fav.id === product.id) ? '#FF6200' : '#ccc',
                         }}>
                             ♥
                         </Text>
@@ -154,7 +154,6 @@ const ProductDetail = ({ route, navigation }) => {
                         <Text style={styles.extraTextHeader}>{product.descriptionHeader}</Text>
                         <Text style={styles.extraText}>{product.description}</Text>
                     </View>
-
                 </View>
             </Animated.ScrollView>
             <MediaModal
