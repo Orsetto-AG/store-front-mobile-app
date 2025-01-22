@@ -8,6 +8,7 @@ import Tabbar from './bottomTab';
 import AuthScreen from '../../screens/AuthScreen';
 import OtpMail from '../../screens/AuthScreen/OtpMail';
 import { login } from '../../redux/slices/authSlice';
+import ForgotPassword from '../../screens/AuthScreen/ForgotPassword';
 
 const Stack = createStackNavigator();
 
@@ -21,6 +22,7 @@ const LoginStack = () => (
         <Stack.Screen name="AuthScreen" component={AuthScreen} />
         <Stack.Screen name="OtpMail" component={OtpMail} />
         <Stack.Screen name="Tabbar" component={Tabbar} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
     </Stack.Navigator>
 );
 

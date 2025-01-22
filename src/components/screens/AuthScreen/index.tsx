@@ -185,7 +185,9 @@ const AuthScreen = () => {
                             />
                         </TouchableOpacity>
                     </View>
-                    <Text style={styles.errorText}>I forgot my password</Text>
+                    <TouchableOpacity onPress={()=>  navigation.navigate('ForgotPassword')}>
+                        <Text style={styles.errorText}>I forgot my password</Text>
+                    </TouchableOpacity>
                     {loading && <ActivityIndicator size="large" color="#FF6200" />}
                   {/*  {error && <Text style={styles.errorText}>{getErrorMessage(error)}</Text>}*/}
                     <TouchableOpacity
