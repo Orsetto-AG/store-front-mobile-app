@@ -9,6 +9,7 @@ import {
     Alert,
     SafeAreaView,
     Modal,
+    KeyboardAvoidingView,
     Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -25,27 +26,32 @@ const AccountDetails = () => {
     const navigation = useNavigation();
     const [activeTab, setActiveTab] = useState(TABS.MEMBERSHIP);
 
+    // Email & Phone
     const [email, setEmail] = useState('');
     const [isEmailVerified, setIsEmailVerified] = useState(false);
-
     const [phoneNumber, setPhoneNumber] = useState('');
     const [isPhoneVerified, setIsPhoneVerified] = useState(false);
 
+    // Membership Info
     const [username, setUsername] = useState('');
     const [name, setName] = useState('');
     const [birthday, setBirthday] = useState('');
     const [gender, setGender] = useState<'male' | 'female' | ''>('');
     const [languageCode, setLanguageCode] = useState('');
 
+    // Password
     const [oldPassword, setOldPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
 
+    // Main Address
     const [street, setStreet] = useState('');
     const [streetNumber, setStreetNumber] = useState('');
     const [zipCode, setZipCode] = useState('');
     const [city, setCity] = useState('');
     const [country, setCountry] = useState('');
+    const [isCompletedAddressVerification, setIsCompletedAddressVerification] = useState(false);
 
+    // Billing Address
     const [showBilling, setShowBilling] = useState(false);
     const [billingStreet, setBillingStreet] = useState('');
     const [billingStreetNumber, setBillingStreetNumber] = useState('');
@@ -53,25 +59,30 @@ const AccountDetails = () => {
     const [billingCity, setBillingCity] = useState('');
     const [billingCountry, setBillingCountry] = useState('');
 
+    // Profile incomplete banner
     const [profileIncomplete, setProfileIncomplete] = useState(false);
     const [phoneOnlyMissing, setPhoneOnlyMissing] = useState(false);
 
-    // Modal (Edit & Verify)
+    // Edit & Verify Modal
     const [editModalVisible, setEditModalVisible] = useState(false);
     const [editField, setEditField] = useState<string | null>(null);
     const [editValue, setEditValue] = useState<string>('');
     const [editPassword, setEditPassword] = useState<string>('');
-
     const [needOtpStep, setNeedOtpStep] = useState(false);
     const [otpValue, setOtpValue] = useState<string>('');
-
     const [pendingFieldToVerify, setPendingFieldToVerify] = useState<'email' | 'phone' | null>(null);
     const [pendingNewValue, setPendingNewValue] = useState<string>('');
+
+    // For Address OTP
+    const [addressOtpSent, setAddressOtpSent] = useState(false);
+    const [addressModalVisible, setAddressModalVisible] = useState(false);
+    const [addressOtp, setAddressOtp] = useState('');
 
     useEffect(() => {
         fetchUserData();
     }, []);
 
+    // Fetch user data
     const fetchUserData = async () => {
         try {
             const token = await AsyncStorage.getItem('token');
@@ -83,40 +94,54 @@ const AccountDetails = () => {
                 },
             });
             if (!response.ok) {
-                throw new Error('Kullanıcı bilgisi alınamadı.');
+                throw new Error('Failed to fetch user data.');
             }
             const data = await response.json();
             const user = data.data.user;
+            console.log('USEEERRR', user)
 
+            // Email & Phone
             setEmail(user.email || '');
             setIsEmailVerified(!!user.isCompletedEmailOtpVerification);
-
             setPhoneNumber(user.phone || '');
             setIsPhoneVerified(!!user.isCompletedPhoneOtpVerification);
 
+            // Membership
             setUsername(user.username || '');
             setName(user.firstName || '');
             setBirthday(user.birthday ? moment(user.birthday).format('DD-MM-YYYY') : '');
             setGender(user.gender || '');
             setLanguageCode(user.languageCode || '');
 
+            // Main Address
             setStreet(user.street || '');
             setStreetNumber(user.streetNumber || '');
             setZipCode(user.zipCode || '');
             setCity(user.city || '');
             setCountry(user.country || '');
+            setIsCompletedAddressVerification(!!user.isCompletedAddressVerification);
 
-            if (user.billingAddress) {
-                setShowBilling(true);
-                setBillingStreet(user.billingAddress?.street || '');
-                setBillingStreetNumber(user.billingAddress?.streetNumber || '');
-                setBillingZipCode(user.billingAddress?.zipCode || '');
-                setBillingCity(user.billingAddress?.city || '');
-                setBillingCountry(user.billingAddress?.country || '');
+            // Address OTP memory
+            if (!user.isCompletedAddressVerification) {
+                const stored = await AsyncStorage.getItem('addressOtpSent');
+                setAddressOtpSent(stored === 'true');
+            } else {
+                setAddressOtpSent(false);
+                await AsyncStorage.removeItem('addressOtpSent');
             }
 
+                // Billing
+                setBillingStreet(user.billingStreet || '');
+                setBillingStreetNumber(user.billingStreetNumber || '');
+                setBillingZipCode(user.billingZipCode || '');
+                setBillingCity(user.billingCity || '');
+                setBillingCountry(user.billingCountry || '');
+
+
+
+            // Profile incomplete
             const isPhoneMissing = !user.isCompletedPhoneOtpVerification;
-            const isAddressMissing = !user.isCompletedAddressVerification;
+            const isAddressMissing = !user.isCompletedEmailOtpVerification;
             if (isPhoneMissing && isAddressMissing) {
                 setProfileIncomplete(true);
                 setPhoneOnlyMissing(false);
@@ -127,11 +152,11 @@ const AccountDetails = () => {
                 setProfileIncomplete(false);
             }
         } catch (error: any) {
-            Alert.alert('Hata', error.message);
+            Alert.alert('Error', error.message);
         }
     };
 
-    // Modal Aç / Kapa
+    // Edit Modal
     const openEditModal = (field: string, currentValue: string) => {
         setEditField(field);
         setEditValue(currentValue);
@@ -153,7 +178,7 @@ const AccountDetails = () => {
         setPendingNewValue('');
     };
 
-    // Değer Kaydet
+    // Save updated value
     const handleSaveValue = async () => {
         if (!editField) return;
         try {
@@ -164,16 +189,10 @@ const AccountDetails = () => {
 
             if (editField === 'email') {
                 endpoint = 'https://api.orsetto.ch/api/customer/change-email';
-                bodyObj = {
-                    newEmailId: editValue,
-                    password: editPassword,
-                };
+                bodyObj = { newEmailId: editValue, password: editPassword };
             } else if (editField === 'phone') {
                 endpoint = 'https://api.orsetto.ch/api/customer/change-phone-number';
-                bodyObj = {
-                    newPhoneNumber: editValue,
-                    password: editPassword,
-                };
+                bodyObj = { newPhoneNumber: editValue, password: editPassword };
             } else if (editField === 'username') {
                 endpoint = 'https://api.orsetto.ch/api/customer/change-username';
                 bodyObj = { username: editValue };
@@ -204,12 +223,12 @@ const AccountDetails = () => {
             });
             if (!response.ok) {
                 const errMsg = await response.text();
-                throw new Error(errMsg || 'Güncelleme başarısız');
+                throw new Error(errMsg || 'Update failed.');
             }
 
-            Alert.alert('Başarılı', `${editField} değiştirildi. Lütfen doğrulayın (gerekirse).`);
+            Alert.alert('Success', `${editField} changed. Please verify if needed.`);
 
-            // Eger email/phone ise OTP step
+            // If email/phone => OTP step
             if (editField === 'email') {
                 setPendingFieldToVerify('email');
                 setPendingNewValue(editValue);
@@ -221,23 +240,21 @@ const AccountDetails = () => {
                 setIsPhoneVerified(false);
                 setNeedOtpStep(true);
             } else {
-                // OTP gerekmeyen alanlar: modal kapat
+                // No OTP needed
                 closeEditModal();
                 fetchUserData();
             }
         } catch (error: any) {
-            Alert.alert('Hata', error.message);
+            Alert.alert('Error', error.message);
         }
     };
 
-    // OTP Verify
+    // Verify OTP
     const handleVerifyOtp = async () => {
-        if (!pendingFieldToVerify || !pendingNewValue) {
-            return;
-        }
+        if (!pendingFieldToVerify || !pendingNewValue) return;
         try {
             const token = await AsyncStorage.getItem('token');
-            let endpoint = 'PUT';
+            let endpoint = '';
             let bodyObj: any = {};
 
             if (pendingFieldToVerify === 'email') {
@@ -264,25 +281,93 @@ const AccountDetails = () => {
             });
             if (!response.ok) {
                 const errMsg = await response.text();
-                throw new Error(errMsg || 'Doğrulama hatası');
+                throw new Error(errMsg || 'Verification failed.');
             }
 
-            // Başarılı
-            Alert.alert('Başarılı', 'Doğrulama tamamlandı.');
+            Alert.alert('Success', 'Verification completed.');
             if (pendingFieldToVerify === 'email') {
                 setIsEmailVerified(true);
             } else {
                 setIsPhoneVerified(true);
             }
-
             closeEditModal();
             fetchUserData();
         } catch (error: any) {
-            Alert.alert('Hata', error.message);
+            Alert.alert('Error', error.message);
         }
     };
 
-    // Hesap Sil
+    // Address OTP
+    const openAddressModal = () => {
+        setAddressOtp('');
+        setAddressModalVisible(true);
+    };
+    const closeAddressModal = () => {
+        setAddressOtp('');
+        setAddressModalVisible(false);
+    };
+
+    // 1) Send OTP Address
+    const handleSendAddressOtp = async () => {
+        try {
+            const token = await AsyncStorage.getItem('token');
+            const response = await fetch('https://api.orsetto.ch/api/customer/send-otp-address', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token || ''}`,
+                },
+            });
+            if (!response.ok) {
+                const errMsg = await response.text();
+                throw new Error(errMsg || 'Address OTP failed to send.');
+            }
+            const data = await response.json();
+            console.log('DEBUG OTP', data); // log the OTP or related info
+
+            Alert.alert('Success', 'OTP was sent to your address by post.');
+            setAddressOtpSent(true);
+            await AsyncStorage.setItem('addressOtpSent', 'true');
+        } catch (error: any) {
+            Alert.alert('Error', error.message);
+        }
+    };
+
+    // 2) Validate Address OTP
+    const handleValidateAddressOtp = async () => {
+        try {
+            if (!addressOtp) {
+                Alert.alert('Error', 'Please enter the OTP code.');
+                return;
+            }
+            const token = await AsyncStorage.getItem('token');
+            const body = { otp: addressOtp };
+            const response = await fetch('https://api.orsetto.ch/api/customer/otp-validation-address', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token || ''}`,
+                },
+                body: JSON.stringify(body),
+            });
+            if (!response.ok) {
+                const errMsg = await response.text();
+                throw new Error(errMsg || 'Address validation failed.');
+            }
+
+            Alert.alert('Success', 'Your address has been verified!');
+            setIsCompletedAddressVerification(true);
+            setAddressOtpSent(false);
+            await AsyncStorage.removeItem('addressOtpSent');
+
+            setAddressModalVisible(false);
+            fetchUserData();
+        } catch (error: any) {
+            Alert.alert('Error', error.message);
+        }
+    };
+
+    // Delete account
     const handleDeleteAccount = async () => {
         try {
             const token = await AsyncStorage.getItem('token');
@@ -294,16 +379,16 @@ const AccountDetails = () => {
                 },
             });
             if (!response.ok) {
-                throw new Error('Hesap silinirken hata oluştu');
+                throw new Error('Account deletion failed.');
             }
-            Alert.alert('Başarılı', 'Hesabınız silinmiştir!');
-            // logout() veya başka işlem
+            Alert.alert('Success', 'Your account has been deleted!');
+            // logout or navigate
         } catch (error: any) {
-            Alert.alert('Hata', error.message);
+            Alert.alert('Error', error.message);
         }
     };
 
-    // Şifre Değişikliği
+    // Change password
     const handleChangePassword = async () => {
         try {
             const token = await AsyncStorage.getItem('token');
@@ -317,17 +402,17 @@ const AccountDetails = () => {
                 body: JSON.stringify(body),
             });
             if (!response.ok) {
-                throw new Error('Şifre değiştirilemedi.');
+                throw new Error('Password change failed.');
             }
-            Alert.alert('Başarılı', 'Şifreniz güncellendi!');
+            Alert.alert('Success', 'Your password has been changed!');
             setOldPassword('');
             setNewPassword('');
         } catch (error: any) {
-            Alert.alert('Hata', error.message);
+            Alert.alert('Error', error.message);
         }
     };
 
-    // Adres
+    // Save Main Address
     const handleChangeAddress = async () => {
         try {
             const token = await AsyncStorage.getItem('token');
@@ -341,15 +426,16 @@ const AccountDetails = () => {
                 body: JSON.stringify(body),
             });
             if (!response.ok) {
-                throw new Error('Adres güncelleme başarısız.');
+                throw new Error('Address update failed.');
             }
-            Alert.alert('Başarılı', 'Adres güncellendi!');
+            Alert.alert('Success', 'Address updated!');
             fetchUserData();
         } catch (error: any) {
-            Alert.alert('Hata', error.message);
+            Alert.alert('Error', error.message);
         }
     };
 
+    // Save Billing
     const handleChangeBillingAddress = async () => {
         try {
             const token = await AsyncStorage.getItem('token');
@@ -369,25 +455,25 @@ const AccountDetails = () => {
                 body: JSON.stringify(body),
             });
             if (!response.ok) {
-                throw new Error('Billing adres güncelleme başarısız.');
+                throw new Error('Billing address update failed.');
             }
-            Alert.alert('Başarılı', 'Billing adres güncellendi!');
+            Alert.alert('Success', 'Billing address updated!');
             fetchUserData();
         } catch (error: any) {
-            Alert.alert('Hata', error.message);
+            Alert.alert('Error', error.message);
         }
     };
 
-    // Profil Tamamlama
+    // Complete profile banner
     const handleCompleteProfile = () => {
         if (phoneOnlyMissing) {
-            Alert.alert('Bilgi', 'Sadece telefon bilgisini güncellemelisiniz.');
+            Alert.alert('Info', 'Please verify your phone number to complete.');
         } else {
-            Alert.alert('Bilgi', 'Profilin eksik kısımlarını doldurmalısınız.');
+            Alert.alert('Info', 'You have some missing profile info. Please update.');
         }
     };
 
-    // Sekme Barı
+    // Tab bar
     const renderTabBar = () => (
         <View style={styles.tabBar}>
             <TouchableOpacity
@@ -436,34 +522,55 @@ const AccountDetails = () => {
 
     // MEMBERSHIP TAB
     const renderMembershipTab = () => (
-        <ScrollView style={{ flex: 1, padding: 15 }}>
-            <Text style={styles.sectionTitle}>Profil bilgileri</Text>
+        <ScrollView
+            style={{ flex: 1, padding: 15 }}
+            keyboardShouldPersistTaps="handled" // Keep input open on taps
+        >
+            <Text style={styles.sectionTitle}>Profile details</Text>
             <Text style={styles.sectionDesc}>
-                Burada kullanıcı bilgilerini düzenleyebilirsiniz.
+                Here you can update your profile information.
             </Text>
 
-            {/* Ad & Soyad (username) */}
+            {/* Name & Username */}
             <View style={styles.inputRow}>
                 <View style={{ flex: 1, marginRight: 5 }}>
-                    <Text>Ad</Text>
-                    <TextInput style={styles.input} value={name} editable={false} />
+                    <Text>Name</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={name}
+                        editable={false}
+                        placeholder="Name"
+                        placeholderTextColor="#999"
+                    />
                 </View>
 
                 <View style={{ flex: 1, marginLeft: 5 }}>
                     <Text>Username</Text>
-                    <TextInput style={styles.input} value={username} editable={false} />
+                    <TextInput
+                        style={styles.input}
+                        value={username}
+                        editable={false}
+                        placeholder="Username"
+                        placeholderTextColor="#999"
+                    />
                     <TouchableOpacity style={styles.editBtn} onPress={() => openEditModal('username', username)}>
                         <Text style={styles.editBtnText}>Edit</Text>
                     </TouchableOpacity>
                 </View>
             </View>
 
-            {/* Doğum Tarihi */}
-            <Text style={{ marginTop: 10 }}>Doğum tarihi</Text>
-            <TextInput style={styles.input} value={birthday} editable={false} />
+            {/* Birthday */}
+            <Text style={{ marginTop: 10 }}>Birthday</Text>
+            <TextInput
+                style={styles.input}
+                value={birthday}
+                editable={false}
+                placeholder="DD-MM-YYYY"
+                placeholderTextColor="#999"
+            />
 
-            {/* Cinsiyet */}
-            <Text style={{ marginTop: 10 }}>Cinsiyet</Text>
+            {/* Gender */}
+            <Text style={{ marginTop: 10 }}>Gender</Text>
             <View style={styles.genderContainer}>
                 <TouchableOpacity
                     style={[
@@ -472,7 +579,7 @@ const AccountDetails = () => {
                     ]}
                     disabled
                 >
-                    <Text>Kadın</Text>
+                    <Text>Female</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={[
@@ -481,13 +588,19 @@ const AccountDetails = () => {
                     ]}
                     disabled
                 >
-                    <Text>Erkek</Text>
+                    <Text>Male</Text>
                 </TouchableOpacity>
             </View>
 
-            {/* languageCode */}
-            <Text style={styles.label}>Dil (languageCode)</Text>
-            <TextInput style={styles.input} value={languageCode} editable={false} />
+            {/* Language Code */}
+            <Text style={styles.label}>Language Code</Text>
+            <TextInput
+                style={styles.input}
+                value={languageCode}
+                editable={false}
+                placeholder="Language"
+                placeholderTextColor="#999"
+            />
             <TouchableOpacity
                 style={styles.editBtn}
                 onPress={() => openEditModal('languageCode', languageCode)}
@@ -495,7 +608,7 @@ const AccountDetails = () => {
                 <Text style={styles.editBtnText}>Edit</Text>
             </TouchableOpacity>
 
-            <Text style={styles.sectionTitle}>İletişim bilgileri</Text>
+            <Text style={styles.sectionTitle}>Contact information</Text>
 
             {/* EMAIL */}
             <Text>
@@ -506,21 +619,33 @@ const AccountDetails = () => {
                     <Text style={{ color: 'red' }}>(Not Verified ❌)</Text>
                 )}
             </Text>
-            <TextInput style={styles.input} value={email} editable={false} />
+            <TextInput
+                style={styles.input}
+                value={email}
+                editable={false}
+                placeholder="Email"
+                placeholderTextColor="#999"
+            />
             <TouchableOpacity style={styles.editBtn} onPress={() => openEditModal('email', email)}>
                 <Text style={styles.editBtnText}>Edit</Text>
             </TouchableOpacity>
 
             {/* PHONE */}
             <Text style={{ marginTop: 10 }}>
-                Telefon{' '}
+                Phone{' '}
                 {isPhoneVerified ? (
                     <Text style={{ color: 'green' }}>(Verified ✅)</Text>
                 ) : (
                     <Text style={{ color: 'red' }}>(Not Verified ❌)</Text>
                 )}
             </Text>
-            <TextInput style={styles.input} value={phoneNumber} editable={false} />
+            <TextInput
+                style={styles.input}
+                value={phoneNumber}
+                editable={false}
+                placeholder="Phone"
+                placeholderTextColor="#999"
+            />
             <TouchableOpacity style={styles.editBtn} onPress={() => openEditModal('phone', phoneNumber)}>
                 <Text style={styles.editBtnText}>Edit</Text>
             </TouchableOpacity>
@@ -529,51 +654,92 @@ const AccountDetails = () => {
                 style={[styles.updateButton, { backgroundColor: 'red', marginTop: 20 }]}
                 onPress={handleDeleteAccount}
             >
-                <Text style={{ color: '#fff', fontWeight: '600' }}>Hesabımı Sil</Text>
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Delete Account</Text>
             </TouchableOpacity>
         </ScrollView>
     );
 
     // PASSWORD TAB
     const renderPasswordTab = () => (
-        <View style={{ flex: 1, padding: 15 }}>
-            <Text style={styles.sectionTitle}>Şifre Değişikliği</Text>
+        <ScrollView
+            style={{ flex: 1, padding: 15 }}
+            keyboardShouldPersistTaps="handled"
+        >
+            <Text style={styles.sectionTitle}>Change Password</Text>
             <Text style={styles.sectionDesc}>
-                Şifreniz en az bir harf, rakam veya özel karakter içermeli.
-                Ayrıca en az 8 karakterden oluşmalı.
+                Your password should include at least one letter, number or special character.
+                Also it must be at least 8 characters long.
             </Text>
 
-            <Text>Mevcut Şifre</Text>
+            <Text>Current Password</Text>
             <TextInput
                 style={styles.input}
                 secureTextEntry
                 value={oldPassword}
                 onChangeText={setOldPassword}
-                placeholder="Mevcut şifre"
+                placeholder="Current password"
+                placeholderTextColor="#999"
             />
 
-            <Text>Yeni Şifre</Text>
+            <Text>New Password</Text>
             <TextInput
                 style={styles.input}
                 secureTextEntry
                 value={newPassword}
                 onChangeText={setNewPassword}
-                placeholder="Yeni şifre"
+                placeholder="New password"
+                placeholderTextColor="#999"
             />
 
             <TouchableOpacity
                 style={[styles.updateButton, { backgroundColor: '#FF6200' }]}
                 onPress={handleChangePassword}
             >
-                <Text style={{ color: '#fff', fontWeight: '600' }}>Güncelle</Text>
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Change</Text>
             </TouchableOpacity>
-        </View>
+        </ScrollView>
     );
 
     // ADDRESS TAB
     const renderAddressTab = () => (
-        <ScrollView style={{ flex: 1, padding: 15 }}>
-            <Text style={styles.sectionTitle}>Main Address</Text>
+        <ScrollView
+            style={{ flex: 1, padding: 15 }}
+            keyboardShouldPersistTaps="handled"
+        >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.sectionTitle}>Main Address </Text>
+                {isCompletedAddressVerification ? (
+                    <Text style={{ color: 'green', marginTop: 10 }}> (Verified ✅)</Text>
+                ) : (
+                    <Text style={{ color: 'red', marginTop: 10 }}> (Not Verified ❌)</Text>
+                )}
+            </View>
+
+            {!isCompletedAddressVerification && (
+                <>
+                    <Text style={styles.verifyInfoText}>
+                        This code will be delivered to your address via post.
+                        You must enter it here to start selling.
+                    </Text>
+
+                    {!addressOtpSent ? (
+                        <TouchableOpacity
+                            style={[styles.verifyButton, { backgroundColor: '#FF6200' }]}
+                            onPress={handleSendAddressOtp}
+                        >
+                            <Text style={styles.verifyButtonText}>Verify Now</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <TouchableOpacity
+                            style={[styles.verifyButton, { backgroundColor: '#FF6200' }]}
+                            onPress={openAddressModal}
+                        >
+                            <Text style={styles.verifyButtonText}>Enter Code</Text>
+                        </TouchableOpacity>
+                    )}
+                </>
+            )}
+
             <View style={styles.inputRow}>
                 <View style={{ flex: 1, marginRight: 5 }}>
                     <Text>Postcode</Text>
@@ -582,6 +748,7 @@ const AccountDetails = () => {
                         value={zipCode}
                         onChangeText={setZipCode}
                         placeholder="Zip code"
+                        placeholderTextColor="#999"
                     />
                 </View>
                 <View style={{ flex: 1, marginLeft: 5 }}>
@@ -591,6 +758,7 @@ const AccountDetails = () => {
                         value={city}
                         onChangeText={setCity}
                         placeholder="City"
+                        placeholderTextColor="#999"
                     />
                 </View>
             </View>
@@ -603,6 +771,7 @@ const AccountDetails = () => {
                         value={street}
                         onChangeText={setStreet}
                         placeholder="Street name"
+                        placeholderTextColor="#999"
                     />
                 </View>
                 <View style={{ flex: 1, marginLeft: 5 }}>
@@ -612,6 +781,7 @@ const AccountDetails = () => {
                         value={streetNumber}
                         onChangeText={setStreetNumber}
                         placeholder="House no."
+                        placeholderTextColor="#999"
                     />
                 </View>
             </View>
@@ -622,13 +792,14 @@ const AccountDetails = () => {
                 value={country}
                 onChangeText={setCountry}
                 placeholder="Country"
+                placeholderTextColor="#999"
             />
 
             <TouchableOpacity
                 style={[styles.updateButton, { backgroundColor: '#FF6200', marginTop: 10 }]}
                 onPress={handleChangeAddress}
             >
-                <Text style={{ color: '#fff', fontWeight: '600' }}>SAVE Main Address</Text>
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Save Main Address</Text>
             </TouchableOpacity>
 
             <View style={[styles.billingHeader, { marginTop: 30 }]}>
@@ -650,6 +821,7 @@ const AccountDetails = () => {
                                 value={billingZipCode}
                                 onChangeText={setBillingZipCode}
                                 placeholder="Zip code"
+                                placeholderTextColor="#999"
                             />
                         </View>
                         <View style={{ flex: 1, marginLeft: 5 }}>
@@ -659,6 +831,7 @@ const AccountDetails = () => {
                                 value={billingCity}
                                 onChangeText={setBillingCity}
                                 placeholder="City"
+                                placeholderTextColor="#999"
                             />
                         </View>
                     </View>
@@ -671,6 +844,7 @@ const AccountDetails = () => {
                                 value={billingStreet}
                                 onChangeText={setBillingStreet}
                                 placeholder="Street name"
+                                placeholderTextColor="#999"
                             />
                         </View>
                         <View style={{ flex: 1, marginLeft: 5 }}>
@@ -680,6 +854,7 @@ const AccountDetails = () => {
                                 value={billingStreetNumber}
                                 onChangeText={setBillingStreetNumber}
                                 placeholder="House no."
+                                placeholderTextColor="#999"
                             />
                         </View>
                     </View>
@@ -690,172 +865,228 @@ const AccountDetails = () => {
                         value={billingCountry}
                         onChangeText={setBillingCountry}
                         placeholder="Country"
+                        placeholderTextColor="#999"
                     />
 
                     <TouchableOpacity
                         style={[styles.updateButton, { backgroundColor: '#FF6200', marginTop: 10 }]}
                         onPress={handleChangeBillingAddress}
                     >
-                        <Text style={{ color: '#fff', fontWeight: '600' }}>SAVE Billing Address</Text>
+                        <Text style={{ color: '#fff', fontWeight: '600' }}>Save Billing Address</Text>
                     </TouchableOpacity>
                 </>
             )}
         </ScrollView>
     );
 
-    // Render
     return (
-        <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Text style={{ fontSize: 20 }}>{'<'} </Text>
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Account details</Text>
-                <TouchableOpacity onPress={fetchUserData} style={styles.refreshButton}>
-                    <Text style={{ color: '#FF6200', fontWeight: 'bold' }}>⟳</Text>
-                </TouchableOpacity>
-            </View>
-
-            {profileIncomplete && (
-                <View style={styles.profileBanner}>
-                    <Text style={styles.profileBannerTitle}>
-                        {phoneOnlyMissing ? 'Complete your phone number' : 'Complete your profile'}
-                    </Text>
-                    <Text style={styles.profileBannerDesc}>
-                        To get full access to features, please complete your profile.
-                    </Text>
-                    <TouchableOpacity style={styles.profileBannerButton} onPress={handleCompleteProfile}>
-                        <Text style={{ color: '#fff', fontWeight: '600' }}>
-                            {phoneOnlyMissing ? 'COMPLETE PHONE NUMBER' : 'COMPLETE NOW'}
-                        </Text>
+        <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+            <SafeAreaView style={styles.container}>
+                {/* Header */}
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                        <Text style={{ fontSize: 20 }}>{'<'} </Text>
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Account Details</Text>
+                    <TouchableOpacity onPress={fetchUserData} style={styles.refreshButton}>
+                        <Text style={{ color: '#FF6200', fontWeight: 'bold' }}>⟳</Text>
                     </TouchableOpacity>
                 </View>
-            )}
 
-            {renderTabBar()}
+                {/* Profile incomplete banner */}
+                {profileIncomplete && (
+                    <View style={styles.profileBanner}>
+                        <Text style={styles.profileBannerTitle}>
+                            {phoneOnlyMissing ? 'Complete your phone number' : 'Complete your profile'}
+                        </Text>
+                        <Text style={styles.profileBannerDesc}>
+                            To get full access to features, please complete your profile.
+                        </Text>
+                        <TouchableOpacity style={styles.profileBannerButton} onPress={handleCompleteProfile}>
+                            <Text style={{ color: '#fff', fontWeight: '600' }}>
+                                {phoneOnlyMissing ? 'COMPLETE PHONE NUMBER' : 'COMPLETE NOW'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
 
-            <View style={{ flex: 1 }}>
+                {/* Tabs */}
+                {renderTabBar()}
+
+                {/* Content */}
                 {activeTab === TABS.MEMBERSHIP && renderMembershipTab()}
                 {activeTab === TABS.PASSWORD && renderPasswordTab()}
                 {activeTab === TABS.ADDRESS && renderAddressTab()}
-            </View>
 
-            {/* Modal */}
-            <Modal
-                visible={editModalVisible}
-                animationType="slide"
-                transparent
-                onRequestClose={closeEditModal}
-            >
-                {/* Yarı saydam arkaplan */}
-                <View style={styles.modalBackground}>
-                    {/* Kart benzeri container */}
-                    <View style={styles.modalCard}>
-                        <Text style={styles.modalTitle}>
-                            {editField === 'email' || editField === 'phone'
-                                ? `Change & Verify ${editField}`
-                                : `Edit ${editField}`}
-                        </Text>
+                {/* EDIT & VERIFY MODAL */}
+                <Modal
+                    visible={editModalVisible}
+                    animationType="slide"
+                    transparent
+                    onRequestClose={closeEditModal}
+                >
+                    <View style={styles.modalBackground}>
+                        <View style={styles.modalCard}>
+                            <Text style={styles.modalTitle}>
+                                {editField === 'email' || editField === 'phone'
+                                    ? `Change & Verify ${editField}`
+                                    : `Edit ${editField}`}
+                            </Text>
 
-                        {!needOtpStep && (
-                            <>
-                                {(editField === 'email' || editField === 'phone') && (
-                                    <>
-                                        <Text style={styles.label}>New {editField}</Text>
-                                        <TextInput
-                                            style={styles.modalInput}
-                                            value={editValue}
-                                            onChangeText={setEditValue}
-                                            autoCapitalize="none"
-                                        />
-                                        <Text style={styles.label}>Password (required)</Text>
-                                        <TextInput
-                                            style={styles.modalInput}
-                                            secureTextEntry
-                                            value={editPassword}
-                                            onChangeText={setEditPassword}
-                                        />
-                                    </>
-                                )}
-
-                                {editField === 'birthday' && (
-                                    <>
-                                        <Text style={styles.label}>New Birthday (DD-MM-YYYY)</Text>
-                                        <TextInput
-                                            style={styles.modalInput}
-                                            value={editValue}
-                                            onChangeText={setEditValue}
-                                        />
-                                    </>
-                                )}
-
-                                {['username', 'languageCode', 'name', 'gender'].includes(editField || '') &&
-                                    !['email', 'phone', 'birthday'].includes(editField || '') && (
+                            {!needOtpStep && (
+                                <>
+                                    {(editField === 'email' || editField === 'phone') && (
                                         <>
-                                            <Text style={styles.label}>New Value</Text>
+                                            <Text style={styles.label}>New {editField}</Text>
                                             <TextInput
                                                 style={styles.modalInput}
                                                 value={editValue}
                                                 onChangeText={setEditValue}
+                                                autoCapitalize="none"
+                                                keyboardType={editField === 'phone' ? 'phone-pad' : 'email-address'}
+                                                placeholderTextColor="#999"
+                                                placeholder={`Enter new ${editField}`}
+                                            />
+                                            <Text style={styles.label}>Password (required)</Text>
+                                            <TextInput
+                                                style={styles.modalInput}
+                                                secureTextEntry
+                                                value={editPassword}
+                                                onChangeText={setEditPassword}
+                                                placeholderTextColor="#999"
+                                                placeholder="Enter password"
                                             />
                                         </>
                                     )}
 
-                                <View style={styles.modalButtonRow}>
-                                    <TouchableOpacity
-                                        style={[styles.modalButton, { backgroundColor: '#aaa' }]}
-                                        onPress={closeEditModal}
-                                    >
-                                        <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={[styles.modalButton, { backgroundColor: '#FF6200' }]}
-                                        onPress={handleSaveValue}
-                                    >
-                                        <Text style={{ color: '#fff', fontWeight: '600' }}>Save</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </>
-                        )}
+                                    {editField === 'birthday' && (
+                                        <>
+                                            <Text style={styles.label}>New Birthday (DD-MM-YYYY)</Text>
+                                            <TextInput
+                                                style={styles.modalInput}
+                                                value={editValue}
+                                                onChangeText={setEditValue}
+                                                placeholderTextColor="#999"
+                                                placeholder="DD-MM-YYYY"
+                                            />
+                                        </>
+                                    )}
 
-                        {/* OTP Step */}
-                        {needOtpStep && (
-                            <>
-                                <Text style={styles.sectionDesc}>
-                                    Lütfen değişikliğinizi doğrulamak için OTP kodunu girin.
-                                </Text>
-                                <Text style={styles.label}>OTP Code</Text>
-                                <TextInput
-                                    style={styles.modalInput}
-                                    value={otpValue}
-                                    onChangeText={setOtpValue}
-                                    keyboardType="number-pad"
-                                />
+                                    {['username', 'languageCode', 'name', 'gender'].includes(editField || '') &&
+                                        !['email', 'phone', 'birthday'].includes(editField || '') && (
+                                            <>
+                                                <Text style={styles.label}>New Value</Text>
+                                                <TextInput
+                                                    style={styles.modalInput}
+                                                    value={editValue}
+                                                    onChangeText={setEditValue}
+                                                    placeholderTextColor="#999"
+                                                    placeholder="Enter new value"
+                                                />
+                                            </>
+                                        )}
 
-                                <View style={styles.modalButtonRow}>
-                                    <TouchableOpacity
-                                        style={[styles.modalButton, { backgroundColor: '#aaa' }]}
-                                        onPress={closeEditModal}
-                                    >
-                                        <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={[
-                                            styles.modalButton,
-                                            { backgroundColor: otpValue ? '#FF6200' : '#ccc' },
-                                        ]}
-                                        onPress={otpValue ? handleVerifyOtp : undefined}
-                                        disabled={!otpValue}
-                                    >
-                                        <Text style={{ color: '#fff', fontWeight: '600' }}>Verify</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </>
-                        )}
+                                    <View style={styles.modalButtonRow}>
+                                        <TouchableOpacity
+                                            style={[styles.modalButton, { backgroundColor: '#aaa' }]}
+                                            onPress={closeEditModal}
+                                        >
+                                            <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[styles.modalButton, { backgroundColor: '#FF6200' }]}
+                                            onPress={handleSaveValue}
+                                        >
+                                            <Text style={{ color: '#fff', fontWeight: '600' }}>Save</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </>
+                            )}
+
+                            {needOtpStep && (
+                                <>
+                                    <Text style={styles.sectionDesc}>
+                                        Please enter the OTP code to verify your change.
+                                    </Text>
+                                    <Text style={styles.label}>OTP Code</Text>
+                                    <TextInput
+                                        style={styles.modalInput}
+                                        value={otpValue}
+                                        onChangeText={setOtpValue}
+                                        keyboardType="number-pad"
+                                        placeholderTextColor="#999"
+                                        placeholder="Enter OTP"
+                                    />
+
+                                    <View style={styles.modalButtonRow}>
+                                        <TouchableOpacity
+                                            style={[styles.modalButton, { backgroundColor: '#aaa' }]}
+                                            onPress={closeEditModal}
+                                        >
+                                            <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.modalButton,
+                                                { backgroundColor: otpValue ? '#FF6200' : '#ccc' },
+                                            ]}
+                                            onPress={otpValue ? handleVerifyOtp : undefined}
+                                            disabled={!otpValue}
+                                        >
+                                            <Text style={{ color: '#fff', fontWeight: '600' }}>Verify</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </>
+                            )}
+                        </View>
                     </View>
-                </View>
-            </Modal>
-        </SafeAreaView>
+                </Modal>
+
+                {/* ADDRESS OTP MODAL */}
+                <Modal
+                    visible={addressModalVisible}
+                    animationType="slide"
+                    transparent
+                    onRequestClose={closeAddressModal}
+                >
+                    <View style={styles.modalBackground}>
+                        <View style={styles.modalCard}>
+                            <Text style={styles.modalTitle}>Enter Address OTP</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                value={addressOtp}
+                                onChangeText={setAddressOtp}
+                                keyboardType="number-pad"
+                                placeholderTextColor="#999"
+                                placeholder="OTP Code"
+                            />
+
+                            <View style={styles.modalButtonRow}>
+                                <TouchableOpacity
+                                    style={[styles.modalButton, { backgroundColor: '#aaa' }]}
+                                    onPress={closeAddressModal}
+                                >
+                                    <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.modalButton,
+                                        { backgroundColor: addressOtp ? '#FF6200' : '#ccc' },
+                                    ]}
+                                    disabled={!addressOtp}
+                                    onPress={handleValidateAddressOtp}
+                                >
+                                    <Text style={{ color: '#fff', fontWeight: '600' }}>Validate</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
+            </SafeAreaView>
+        </KeyboardAvoidingView>
     );
 };
 
@@ -1018,10 +1249,29 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
 
+    /* ADDRESS VERIFY */
+    verifyInfoText: {
+        fontSize: 13,
+        color: '#666',
+        marginVertical: 5,
+    },
+    verifyButton: {
+        paddingVertical: 10,
+        paddingHorizontal: 15,
+        borderRadius: 5,
+        alignSelf: 'flex-start',
+        marginBottom: 10,
+        marginTop: 5,
+    },
+    verifyButtonText: {
+        color: '#fff',
+        fontWeight: '600',
+    },
+
     /* MODAL BACKGROUND */
     modalBackground: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)', // Yarı saydam koyu arkaplan
+        backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -1031,7 +1281,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         borderRadius: 10,
         padding: 20,
-        // Gölge efekti (iOS & Android)
+        // Shadow for iOS & Android
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.2,

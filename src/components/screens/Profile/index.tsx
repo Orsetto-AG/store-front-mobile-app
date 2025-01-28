@@ -98,7 +98,7 @@ const Profile = () => {
 
                 <View style={styles.premiumBanner}>
                     <Text style={styles.premiumText}>ORSETTO</Text>
-                    <TouchableOpacity style={styles.premiumButton}>
+                    <TouchableOpacity onPress={() => setModalVisible(true)} style={styles.premiumButton}>
                         <Text style={styles.premiumButtonText}>Premium User</Text>
                     </TouchableOpacity>
                 </View>
