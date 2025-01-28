@@ -11,6 +11,9 @@ import Categories from '../../screens/Categories';
 import MyHome from '../../screens/MyHome';
 import CategoryProducts from '../../screens/Categories/CategoryProducts';
 import ProductDetail from '../../screens/MyHome/ProductDetail';
+import CompleteProfile from '../../screens/Profile/CompleteProfile';
+import UserSettings from '../../screens/Profile/UserSettings';
+import AccountDetails from '../../screens/Profile/AccountDetails';
 
 
 const HomeStackScreen = () => {
@@ -167,6 +170,54 @@ const CartStackScreen = () => {
         name="Profile"
         component={Profile}
       />
+        <StackNavigator.Screen
+            navigationOptions={{
+                drawerLockMode: 'locked-closed',
+                cardStack: {
+                    gesturesEnabled: false,
+                    swipeEnabled: false,
+                    header: null,
+                },
+            }}
+            options={{
+                gestureEnabled: false,
+                swipeEnabled: false,
+            }}
+            name="CompleteProfile"
+            component={CompleteProfile}
+        />
+        <StackNavigator.Screen
+            navigationOptions={{
+                drawerLockMode: 'locked-closed',
+                cardStack: {
+                    gesturesEnabled: false,
+                    swipeEnabled: false,
+                    header: null,
+                },
+            }}
+            options={{
+                gestureEnabled: false,
+                swipeEnabled: false,
+            }}
+            name="UserSettings"
+            component={UserSettings}
+        />
+        <StackNavigator.Screen
+            navigationOptions={{
+                drawerLockMode: 'locked-closed',
+                cardStack: {
+                    gesturesEnabled: false,
+                    swipeEnabled: false,
+                    header: null,
+                },
+            }}
+            options={{
+                gestureEnabled: false,
+                swipeEnabled: false,
+            }}
+            name="AccountDetails"
+            component={AccountDetails}
+        />
     </StackNavigator.Navigator>
   );
 };

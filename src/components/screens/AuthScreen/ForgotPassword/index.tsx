@@ -53,7 +53,6 @@ const ForgotPassword = () => {
 
     return (
         <View style={styles.container}>
-            {/* Back Button */}
             <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
                 <Text style={styles.backButtonText}>Back</Text>
             </TouchableOpacity>
@@ -116,7 +115,7 @@ const styles = StyleSheet.create({
         marginBottom: 30
     },
     resetButton: {
-        backgroundColor: '#FF6200', // Yeni turuncu renk
+        backgroundColor: '#FF6200',
         borderRadius: 8,
         paddingVertical: 15,
         alignItems: 'center',
@@ -147,7 +146,7 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     signInButton: {
-        backgroundColor: '#FF6200', // Yeni turuncu renk
+        backgroundColor: '#FF6200',
         borderRadius: 8,
         paddingVertical: 15,
         paddingHorizontal: 40,
