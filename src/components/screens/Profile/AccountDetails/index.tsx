@@ -78,6 +78,12 @@ const AccountDetails = () => {
     const [addressModalVisible, setAddressModalVisible] = useState(false);
     const [addressOtp, setAddressOtp] = useState('');
 
+    // For "Complete Phone" Flow
+    const [completePhoneModalVisible, setCompletePhoneModalVisible] = useState(false);
+    const [completePhoneStep, setCompletePhoneStep] = useState<0 | 1>(0);
+    const [tempPhone, setTempPhone] = useState('');
+    const [tempOtp, setTempOtp] = useState('');
+
     useEffect(() => {
         fetchUserData();
     }, []);
@@ -103,7 +109,7 @@ const AccountDetails = () => {
             // Email & Phone
             setEmail(user.email || '');
             setIsEmailVerified(!!user.isCompletedEmailOtpVerification);
-            setPhoneNumber(user.phone || '');
+            setPhoneNumber(user.mobileNo || '');
             setIsPhoneVerified(!!user.isCompletedPhoneOtpVerification);
 
             // Membership
@@ -153,6 +159,90 @@ const AccountDetails = () => {
             }
         } catch (error: any) {
             Alert.alert('Error', error.message);
+        }
+    };
+    // =============== COMPLETE PHONE FLOW ===============
+    const openCompletePhoneModal = () => {
+        setCompletePhoneModalVisible(true);
+        setCompletePhoneStep(0);
+        setTempPhone('');
+        setTempOtp('');
+    };
+    const closeCompletePhoneModal = () => {
+        setCompletePhoneModalVisible(false);
+        setCompletePhoneStep(0);
+        setTempPhone('');
+        setTempOtp('');
+    };
+    // 1) Send phone OTP
+    const handleSendSmsOtp = async () => {
+        try {
+            if (!tempPhone) {
+                Alert.alert('Error', 'Please enter a phone number.');
+                return;
+            }
+            const token = await AsyncStorage.getItem('token');
+            const body = { mobileNo: tempPhone };
+            const response = await fetch('https://api.orsetto.ch/api/customer/send-otp-sms', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token || ''}`,
+                },
+                body: JSON.stringify(body),
+            });
+            console.log('BODYYY',body)
+            if (!response.ok) {
+                const errMsg = await response.text();
+                throw new Error(errMsg || 'Could not send OTP.');
+            }
+            const data = await response.json();
+            console.log('DEBUG SMS OTP:', data);
+            Alert.alert('Success', 'OTP sent to your phone.');
+            setCompletePhoneStep(1); // go to OTP step
+        } catch (error: any) {
+            Alert.alert('Hah', error.message);
+           // setCompletePhoneStep(1);
+        }
+    };
+
+    // 2) Validate phone OTP
+    const handleValidateSmsOtp = async () => {
+        try {
+            if (!tempOtp) {
+                Alert.alert('Error', 'Please enter the OTP code.');
+                return;
+            }
+            const token = await AsyncStorage.getItem('token');
+            const body = { otp: parseInt(tempOtp, 10) };
+            const response = await fetch('https://api.orsetto.ch/api/customer/otp-validation-sms', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token || ''}`,
+                },
+                body: JSON.stringify(body),
+            });
+            if (!response.ok) {
+                const errMsg = await response.text();
+                throw new Error(errMsg || 'Phone validation failed.');
+            }
+
+            Alert.alert('Success', 'Your phone has been verified!');
+            // Now phoneNumber is in backend, re-fetch user data:
+            closeCompletePhoneModal();
+            fetchUserData();
+        } catch (error: any) {
+            Alert.alert('Error', error.message);
+        }
+    };
+    // if user taps "Complete phone number" in the banner
+    const handleCompleteProfile = () => {
+        if (phoneOnlyMissing) {
+            // open phone-only modal
+            openCompletePhoneModal();
+        } else {
+            Alert.alert('Info', 'You have some missing profile info. Please update.');
         }
     };
 
@@ -464,14 +554,6 @@ const AccountDetails = () => {
         }
     };
 
-    // Complete profile banner
-    const handleCompleteProfile = () => {
-        if (phoneOnlyMissing) {
-            Alert.alert('Info', 'Please verify your phone number to complete.');
-        } else {
-            Alert.alert('Info', 'You have some missing profile info. Please update.');
-        }
-    };
 
     // Tab bar
     const renderTabBar = () => (
@@ -524,7 +606,7 @@ const AccountDetails = () => {
     const renderMembershipTab = () => (
         <ScrollView
             style={{ flex: 1, padding: 15 }}
-            keyboardShouldPersistTaps="handled" // Keep input open on taps
+            keyboardShouldPersistTaps="handled"
         >
             <Text style={styles.sectionTitle}>Profile details</Text>
             <Text style={styles.sectionDesc}>
@@ -631,24 +713,31 @@ const AccountDetails = () => {
             </TouchableOpacity>
 
             {/* PHONE */}
-            <Text style={{ marginTop: 10 }}>
-                Phone{' '}
-                {isPhoneVerified ? (
-                    <Text style={{ color: 'green' }}>(Verified ✅)</Text>
-                ) : (
-                    <Text style={{ color: 'red' }}>(Not Verified ❌)</Text>
-                )}
-            </Text>
-            <TextInput
-                style={styles.input}
-                value={phoneNumber}
-                editable={false}
-                placeholder="Phone"
-                placeholderTextColor="#999"
-            />
-            <TouchableOpacity style={styles.editBtn} onPress={() => openEditModal('phone', phoneNumber)}>
-                <Text style={styles.editBtnText}>Edit</Text>
-            </TouchableOpacity>
+            {phoneNumber.length > 0 ? (
+                <>
+                    <Text style={{ marginTop: 10 }}>
+                        Phone{' '}
+                        {isPhoneVerified ? (
+                            <Text style={{ color: 'green' }}>(Verified ✅)</Text>
+                        ) : (
+                            <Text style={{ color: 'red' }}>(Not Verified ❌)</Text>
+                        )}
+                    </Text>
+                    <TextInput
+                        style={styles.input}
+                        value={phoneNumber}
+                        editable={false}
+                        placeholder="Phone"
+                        placeholderTextColor="#999"
+                    />
+                    <TouchableOpacity style={styles.editBtn} onPress={() => openEditModal('phone', phoneNumber)}>
+                        <Text style={styles.editBtnText}>Edit</Text>
+                    </TouchableOpacity>
+                </>
+            ) : (
+                // if phone is empty, we hide this part or show "No phone"
+                <Text style={{ color: 'gray', marginTop: 10 }}>No phone number yet.</Text>
+            )}
 
             <TouchableOpacity
                 style={[styles.updateButton, { backgroundColor: 'red', marginTop: 20 }]}
@@ -885,18 +974,8 @@ const AccountDetails = () => {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
             <SafeAreaView style={styles.container}>
-                {/* Header */}
-                <View style={styles.header}>
-                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                        <Text style={{ fontSize: 20 }}>{'<'} </Text>
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Account Details</Text>
-                    <TouchableOpacity onPress={fetchUserData} style={styles.refreshButton}>
-                        <Text style={{ color: '#FF6200', fontWeight: 'bold' }}>⟳</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Profile incomplete banner */}
+                {/* HEADER etc. */}
+                {/* BANNER if (profileIncomplete) ... */}
                 {profileIncomplete && (
                     <View style={styles.profileBanner}>
                         <Text style={styles.profileBannerTitle}>
@@ -913,10 +992,10 @@ const AccountDetails = () => {
                     </View>
                 )}
 
-                {/* Tabs */}
+                {/* TAB BAR */}
                 {renderTabBar()}
 
-                {/* Content */}
+                {/* CONTENT */}
                 {activeTab === TABS.MEMBERSHIP && renderMembershipTab()}
                 {activeTab === TABS.PASSWORD && renderPasswordTab()}
                 {activeTab === TABS.ADDRESS && renderAddressTab()}
@@ -1082,6 +1161,77 @@ const AccountDetails = () => {
                                     <Text style={{ color: '#fff', fontWeight: '600' }}>Validate</Text>
                                 </TouchableOpacity>
                             </View>
+                        </View>
+                    </View>
+                </Modal>
+
+                {/* COMPLETE PHONE MODAL */}
+                <Modal
+                    visible={completePhoneModalVisible}
+                    animationType="slide"
+                    transparent
+                    onRequestClose={closeCompletePhoneModal}
+                >
+                    <View style={styles.modalBackground}>
+                        <View style={styles.modalCard}>
+                            {completePhoneStep === 0 ? (
+                                <>
+                                    <Text style={styles.modalTitle}>Enter your phone number</Text>
+                                    <TextInput
+                                        style={styles.modalInput}
+                                        value={tempPhone}
+                                        onChangeText={setTempPhone}
+                                        keyboardType="phone-pad"
+                                        placeholder="Phone number"
+                                        placeholderTextColor="#999"
+                                    />
+                                    <View style={styles.modalButtonRow}>
+                                        <TouchableOpacity
+                                            style={[styles.modalButton, { backgroundColor: '#aaa' }]}
+                                            onPress={closeCompletePhoneModal}
+                                        >
+                                            <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[styles.modalButton, { backgroundColor: '#FF6200' }]}
+                                            onPress={handleSendSmsOtp}
+                                        >
+                                            <Text style={{ color: '#fff', fontWeight: '600' }}>Send OTP</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </>
+                            ) : (
+                                <>
+                                    <Text style={styles.modalTitle}>Enter OTP Code</Text>
+                                    <Text style={{ marginBottom: 10 }}>We sent an SMS with a code to {tempPhone}</Text>
+                                    <TextInput
+                                        style={styles.modalInput}
+                                        value={tempOtp}
+                                        onChangeText={setTempOtp}
+                                        keyboardType="number-pad"
+                                        placeholder="OTP code"
+                                        placeholderTextColor="#999"
+                                    />
+                                    <View style={styles.modalButtonRow}>
+                                        <TouchableOpacity
+                                            style={[styles.modalButton, { backgroundColor: '#aaa' }]}
+                                            onPress={closeCompletePhoneModal}
+                                        >
+                                            <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.modalButton,
+                                                { backgroundColor: tempOtp ? '#FF6200' : '#ccc' },
+                                            ]}
+                                            disabled={!tempOtp}
+                                            onPress={handleValidateSmsOtp}
+                                        >
+                                            <Text style={{ color: '#fff', fontWeight: '600' }}>Verify</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </>
+                            )}
                         </View>
                     </View>
                 </Modal>
