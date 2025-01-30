@@ -15,6 +15,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import moment from 'moment';
 import { useNavigation } from '@react-navigation/native';
+import CompleteProfileModal from '../CompleteProfile';
 
 const TABS = {
     MEMBERSHIP: 0,
@@ -83,7 +84,8 @@ const AccountDetails = () => {
     const [completePhoneStep, setCompletePhoneStep] = useState<0 | 1>(0);
     const [tempPhone, setTempPhone] = useState('');
     const [tempOtp, setTempOtp] = useState('');
-
+    const [isModalVisible, setModalVisible] = useState(false);
+    const [profileData, setProfileData] = useState<any>(null);
     useEffect(() => {
         fetchUserData();
     }, []);
@@ -104,8 +106,8 @@ const AccountDetails = () => {
             }
             const data = await response.json();
             const user = data.data.user;
-            console.log('USEEERRR', user)
-
+            console.log('USEEERRR', user);
+            setProfileData(user);
             // Email & Phone
             setEmail(user.email || '');
             setIsEmailVerified(!!user.isCompletedEmailOtpVerification);
@@ -191,7 +193,7 @@ const AccountDetails = () => {
                 },
                 body: JSON.stringify(body),
             });
-            console.log('BODYYY',body)
+            console.log('BODYYY',body);
             if (!response.ok) {
                 const errMsg = await response.text();
                 throw new Error(errMsg || 'Could not send OTP.');
@@ -242,7 +244,7 @@ const AccountDetails = () => {
             // open phone-only modal
             openCompletePhoneModal();
         } else {
-            Alert.alert('Info', 'You have some missing profile info. Please update.');
+            setModalVisible(true);
         }
     };
 
@@ -270,7 +272,7 @@ const AccountDetails = () => {
 
     // Save updated value
     const handleSaveValue = async () => {
-        if (!editField) return;
+        if (!editField) {return;}
         try {
             const token = await AsyncStorage.getItem('token');
             let endpoint = '';
@@ -341,7 +343,7 @@ const AccountDetails = () => {
 
     // Verify OTP
     const handleVerifyOtp = async () => {
-        if (!pendingFieldToVerify || !pendingNewValue) return;
+        if (!pendingFieldToVerify || !pendingNewValue) {return;}
         try {
             const token = await AsyncStorage.getItem('token');
             let endpoint = '';
@@ -635,7 +637,7 @@ const AccountDetails = () => {
                         placeholder="Username"
                         placeholderTextColor="#999"
                     />
-                    <TouchableOpacity style={styles.editBtn} onPress={() => openEditModal('username', username)}>
+                    <TouchableOpacity style={styles.editBtn} onPress={() =>   setModalVisible(true)}>
                         <Text style={styles.editBtnText}>Edit</Text>
                     </TouchableOpacity>
                 </View>
@@ -1235,6 +1237,17 @@ const AccountDetails = () => {
                         </View>
                     </View>
                 </Modal>
+
+                <CompleteProfileModal
+                    isVisible={isModalVisible}
+                    onClose={() => setModalVisible(false)}
+                    onProfileUpdate={() => {
+                        fetchUserData();
+                        setModalVisible(false);
+                    }}
+                    profileData={profileData}
+                />
+
             </SafeAreaView>
         </KeyboardAvoidingView>
     );

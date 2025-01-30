@@ -38,7 +38,7 @@ const menuItems = [
     { id: '10', label: 'News', icon: require('../../images/megaphone.png') },
 ];
 
-const MAX_FILE_SIZE = 1_000_000; // 1 MB ~ 1 milyon byte
+const MAX_FILE_SIZE = 1_000_000; // 1 MB
 
 const Profile = () => {
     const dispatch = useDispatch();
@@ -96,7 +96,7 @@ const Profile = () => {
         const options: CameraOptions = {
             mediaType: 'photo',
             includeBase64: true,
-            quality: 0.8,  // Sıkıştırma kalitesi (0.0 - 1.0 arası)
+            quality: 0.8,
             maxWidth: 1024,
             maxHeight: 1024,
         };
