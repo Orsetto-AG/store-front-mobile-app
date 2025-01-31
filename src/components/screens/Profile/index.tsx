@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -16,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import CompleteProfileModal from '../Profile/CompleteProfile';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import {
     launchCamera,
     launchImageLibrary,
@@ -68,9 +69,11 @@ const Profile = () => {
         }
     };
 
-    useEffect(() => {
-        fetchProfileData();
-    }, []);
+    useFocusEffect(
+        useCallback(() => {
+            fetchProfileData();
+        }, [])
+    );
 
     // LOGOUT FONKSİYONU GÜNCELLENDİ
     const handleLogout = async () => {
