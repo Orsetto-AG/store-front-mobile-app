@@ -124,7 +124,7 @@ const AccountDetails = () => {
 
             // Şirket bilgileri
             if (user.isCompany) {
-                setIsCompany(user.isCompany);
+                setIsCompany(true);
                 setCompanyName(user.companyName || '');
                 setIsTradeRegistered(!!user.isTradeRegistered);
                 setTradeRegisteredNumber(user.tradeRegisteredNumber || '');
@@ -133,7 +133,7 @@ const AccountDetails = () => {
                 setRegisterPersonSurname(user.registerPersonSurname || '');
                 setRegisterPersonSex(user.registerPersonSex || '');
             } else {
-                setIsCompany(!user.isCompany);
+                setIsCompany(false);
                 setCompanyName('');
                 setIsTradeRegistered(false);
                 setTradeRegisteredNumber('');
@@ -165,7 +165,7 @@ const AccountDetails = () => {
 
             // Şirket bilgileri
             if (user.isCompany) {
-                setIsCompany(user.isCompany);
+                setIsCompany(true);
                 setCompanyName(user.companyName || '');
                 setIsTradeRegistered(!!user.isTradeRegistered);
                 setTradeRegisteredNumber(user.tradeRegisteredNumber || '');
@@ -174,7 +174,7 @@ const AccountDetails = () => {
                 setRegisterPersonSurname(user.registerPersonSurname || '');
                 setRegisterPersonSex(user.registerPersonSex || '');
             } else {
-                setIsCompany(!user.isCompany);
+                setIsCompany(false);
                 setCompanyName('');
                 setIsTradeRegistered(false);
                 setTradeRegisteredNumber('');
