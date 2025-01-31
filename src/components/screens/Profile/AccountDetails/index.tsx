@@ -11,17 +11,19 @@ import {
     Modal,
     KeyboardAvoidingView,
     Platform,
+    Switch,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import moment from 'moment';
 import { useNavigation } from '@react-navigation/native';
 import CompleteProfileModal from '../CompleteProfile';
-
 const TABS = {
     MEMBERSHIP: 0,
     PASSWORD: 1,
     ADDRESS: 2,
+    COMPANY : 3,
 };
+
 
 const AccountDetails = () => {
     const navigation = useNavigation();
@@ -86,6 +88,17 @@ const AccountDetails = () => {
     const [tempOtp, setTempOtp] = useState('');
     const [isModalVisible, setModalVisible] = useState(false);
     const [profileData, setProfileData] = useState<any>(null);
+
+    // Şirket ile ilgili state'ler:
+    const [isCompany, setIsCompany] = useState(false);
+    const [companyName, setCompanyName] = useState('');
+    const [isTradeRegistered, setIsTradeRegistered] = useState(false);
+    const [tradeRegisteredNumber, setTradeRegisteredNumber] = useState('');
+    const [isRegisterOwner, setIsRegisterOwner] = useState(false);
+    const [registerPersonName, setRegisterPersonName] = useState('');
+    const [registerPersonSurname, setRegisterPersonSurname] = useState('');
+    const [registerPersonSex, setRegisterPersonSex] = useState<'male' | 'female' | 'other' | ''>('');
+
     useEffect(() => {
         fetchUserData();
     }, []);
@@ -108,6 +121,27 @@ const AccountDetails = () => {
             const user = data.data.user;
             console.log('USEEERRR', user);
             setProfileData(user);
+
+            // Şirket bilgileri
+            if (user.isCompany) {
+                setIsCompany(user.isCompany);
+                setCompanyName(user.companyName || '');
+                setIsTradeRegistered(!!user.isTradeRegistered);
+                setTradeRegisteredNumber(user.tradeRegisteredNumber || '');
+                setIsRegisterOwner(!!user.isRegisterOwner);
+                setRegisterPersonName(user.registerPersonName || '');
+                setRegisterPersonSurname(user.registerPersonSurname || '');
+                setRegisterPersonSex(user.registerPersonSex || '');
+            } else {
+                setIsCompany(!user.isCompany);
+                setCompanyName('');
+                setIsTradeRegistered(false);
+                setTradeRegisteredNumber('');
+                setIsRegisterOwner(false);
+                setRegisterPersonName('');
+                setRegisterPersonSurname('');
+                setRegisterPersonSex('');
+            }
             // Email & Phone
             setEmail(user.email || '');
             setIsEmailVerified(!!user.isCompletedEmailOtpVerification);
@@ -129,6 +163,27 @@ const AccountDetails = () => {
             setCountry(user.country || '');
             setIsCompletedAddressVerification(!!user.isCompletedAddressVerification);
 
+            // Şirket bilgileri
+            if (user.isCompany) {
+                setIsCompany(user.isCompany);
+                setCompanyName(user.companyName || '');
+                setIsTradeRegistered(!!user.isTradeRegistered);
+                setTradeRegisteredNumber(user.tradeRegisteredNumber || '');
+                setIsRegisterOwner(!!user.isRegisterOwner);
+                setRegisterPersonName(user.registerPersonName || '');
+                setRegisterPersonSurname(user.registerPersonSurname || '');
+                setRegisterPersonSex(user.registerPersonSex || '');
+            } else {
+                setIsCompany(!user.isCompany);
+                setCompanyName('');
+                setIsTradeRegistered(false);
+                setTradeRegisteredNumber('');
+                setIsRegisterOwner(false);
+                setRegisterPersonName('');
+                setRegisterPersonSurname('');
+                setRegisterPersonSex('');
+            }
+
             // Address OTP memory
             if (!user.isCompletedAddressVerification) {
                 const stored = await AsyncStorage.getItem('addressOtpSent');
@@ -148,8 +203,8 @@ const AccountDetails = () => {
 
 
             // Profile incomplete
-            const isPhoneMissing = !user.isCompletedPhoneOtpVerification;
-            const isAddressMissing = !user.isCompletedEmailOtpVerification;
+            const isPhoneMissing = !user.isCompletedKycVerification;
+            const isAddressMissing = !user.isCompletedKycVerification;
             if (isPhoneMissing && isAddressMissing) {
                 setProfileIncomplete(true);
                 setPhoneOnlyMissing(false);
@@ -163,6 +218,12 @@ const AccountDetails = () => {
             Alert.alert('Error', error.message);
         }
     };
+    // Eğer user artık isCompany değilse, "Company" sekmesi aktif kalmasın diye
+    useEffect(() => {
+        if (!isCompany && activeTab === TABS.COMPANY) {
+            setActiveTab(TABS.MEMBERSHIP);
+        }
+    }, [isCompany, activeTab]);
     // =============== COMPLETE PHONE FLOW ===============
     const openCompletePhoneModal = () => {
         setCompletePhoneModalVisible(true);
@@ -238,6 +299,73 @@ const AccountDetails = () => {
             Alert.alert('Error', error.message);
         }
     };
+    const handleSaveCompanyInfo = async () => {
+        try {
+            const token = await AsyncStorage.getItem('token');
+
+            // Kullanıcı "Privatperson" (isCompany=false) seçtiyse her şey sıfırlanacak.
+            if (!isCompany) {
+                const removeBody = {
+                    companyName: '',
+                    isTradeRegistered: false,
+                    tradeRegisteredNumber: '',
+                    isRegisterOwner: false,
+                    registerPersonName: '',
+                    registerPersonSurname: '',
+                    registerPersonSex: '',
+                };
+
+                const resp = await fetch('https://api.orsetto.ch/api/customer/edit-company-info', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token || ''}`,
+                    },
+                    body: JSON.stringify(removeBody),
+                });
+
+                if (!resp.ok) {
+                    const err = await resp.text();
+                    throw new Error(err || 'Failed to remove company info.');
+                }
+
+                Alert.alert('Success', 'Company info removed and saved as private person.');
+            } else {
+                // isCompany = true, o halde doldurulan şirket alanlarını gönderelim
+                const requestBody = {
+                    isCompany: true,
+                    companyName,
+                    isTradeRegistered,
+                    tradeRegisteredNumber,
+                    isRegisterOwner,
+                    registerPersonName,
+                    registerPersonSurname,
+                    registerPersonSex,
+                };
+
+                const resp = await fetch('https://api.orsetto.ch/api/customer/edit-company-info', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token || ''}`,
+                    },
+                    body: JSON.stringify(requestBody),
+                });
+                console.log('REGUEST BODY', requestBody)
+                if (!resp.ok) {
+                    const err = await resp.text();
+                    throw new Error(err || 'Failed to update company info.');
+                }
+                Alert.alert('Success', 'Company info saved successfully!');
+            }
+
+            // İşlem sonrası user datasını tazele
+            fetchUserData();
+        } catch (error: any) {
+            Alert.alert('Error', error.message);
+        }
+    };
+
     // if user taps "Complete phone number" in the banner
     const handleCompleteProfile = () => {
         if (phoneOnlyMissing) {
@@ -601,6 +729,21 @@ const AccountDetails = () => {
                     Edit Address
                 </Text>
             </TouchableOpacity>
+            {isCompany && (
+                <TouchableOpacity
+                    style={[styles.tabItem, activeTab === TABS.COMPANY && styles.tabItemActive]}
+                    onPress={() => setActiveTab(TABS.COMPANY)}
+                >
+                    <Text
+                        style={[
+                            styles.tabText,
+                            activeTab === TABS.COMPANY && styles.tabTextActive,
+                        ]}
+                    >
+                        Company
+                    </Text>
+                </TouchableOpacity>
+            )}
         </View>
     );
 
@@ -637,7 +780,7 @@ const AccountDetails = () => {
                         placeholder="Username"
                         placeholderTextColor="#999"
                     />
-                    <TouchableOpacity style={styles.editBtn} onPress={() =>   setModalVisible(true)}>
+                    <TouchableOpacity style={styles.editBtn} onPress={() => openEditModal('username', username)}>
                         <Text style={styles.editBtnText}>Edit</Text>
                     </TouchableOpacity>
                 </View>
@@ -969,6 +1112,133 @@ const AccountDetails = () => {
             )}
         </ScrollView>
     );
+    // ========== Şirket Sekmesi ==========
+    const renderCompanyTab = () => {
+        return (
+            <ScrollView style={{ flex: 1, padding: 15 }}>
+                <Text style={styles.sectionTitle}>Gewerbe / Privatperson</Text>
+
+                {/* İki buton veya Switch */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 10 }}>
+                    <Text style={{ marginRight: 10 }}>Privatperson</Text>
+                    <Switch
+                        value={isCompany}
+                        onValueChange={(val) => {
+                            setIsCompany(val);
+                        }}
+                    />
+
+                    <Text style={{ marginLeft: 10 }}>Gewerbe</Text>
+                </View>
+
+                {isCompany && (
+                    <>
+                        <Text style={{ marginTop: 10 }}>Company Name</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={companyName}
+                            onChangeText={setCompanyName}
+                            placeholder="Company Name"
+                            placeholderTextColor="#999"
+                        />
+                        {/* Handelsregister vs... */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
+                            <Text style={{ flex: 1 }}>Handelsregister?</Text>
+                            <Switch
+                                value={isTradeRegistered}
+                                onValueChange={(val) => setIsTradeRegistered(val)}
+                            />
+                        </View>
+
+                        {isTradeRegistered && (
+                            <>
+                                <Text style={{ marginTop: 10 }}>Handelsregister Nr.</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={tradeRegisteredNumber}
+                                    onChangeText={setTradeRegisteredNumber}
+                                    placeholder="CH-ZH-98765"
+                                    placeholderTextColor="#999"
+                                />
+                            </>
+                        )}
+
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
+                            <Text style={{ flex: 1 }}>Zeichnungsberechtigt?</Text>
+                            <Switch
+                                value={!isRegisterOwner}
+                                onValueChange={(val) => {
+                                    setIsRegisterOwner(!val);
+                                }}
+                            />
+                        </View>
+
+                        {!isRegisterOwner && (
+                            <>
+                                <Text style={{ marginTop: 10 }}>Zeichnungsberechtigte/r Vorname</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={registerPersonName}
+                                    onChangeText={setRegisterPersonName}
+                                    placeholder="Name"
+                                    placeholderTextColor="#999"
+                                />
+
+                                <Text style={{ marginTop: 10 }}>Zeichnungsberechtigte/r Nachname</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={registerPersonSurname}
+                                    onChangeText={setRegisterPersonSurname}
+                                    placeholder="Surname"
+                                    placeholderTextColor="#999"
+                                />
+
+                                <Text style={{ marginTop: 10 }}>Geschlecht</Text>
+                                <View style={{ flexDirection: 'row', marginVertical: 5 }}>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.genderOption,
+                                            registerPersonSex === 'female' && styles.genderOptionSelected,
+                                        ]}
+                                        onPress={() => setRegisterPersonSex('female')}
+                                    >
+                                        <Text>Female</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.genderOption,
+                                            registerPersonSex === 'male' && styles.genderOptionSelected,
+                                        ]}
+                                        onPress={() => setRegisterPersonSex('male')}
+                                    >
+                                        <Text>Male</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.genderOption,
+                                            registerPersonSex === 'other' && styles.genderOptionSelected,
+                                        ]}
+                                        onPress={() => setRegisterPersonSex('other')}
+                                    >
+                                        <Text>Other</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </>
+                        )}
+                    </>
+                )}
+
+                <TouchableOpacity
+                    style={[styles.updateButton, { backgroundColor: '#FF6200', marginTop: 20 }]}
+                    onPress={handleSaveCompanyInfo}
+                >
+                    <Text style={{ color: '#fff', fontWeight: '600' }}>
+                        Save
+                    </Text>
+                </TouchableOpacity>
+            </ScrollView>
+        );
+    };
 
     return (
         <KeyboardAvoidingView
@@ -1001,7 +1271,7 @@ const AccountDetails = () => {
                 {activeTab === TABS.MEMBERSHIP && renderMembershipTab()}
                 {activeTab === TABS.PASSWORD && renderPasswordTab()}
                 {activeTab === TABS.ADDRESS && renderAddressTab()}
-
+                {isCompany && activeTab === TABS.COMPANY && renderCompanyTab()}
                 {/* EDIT & VERIFY MODAL */}
                 <Modal
                     visible={editModalVisible}

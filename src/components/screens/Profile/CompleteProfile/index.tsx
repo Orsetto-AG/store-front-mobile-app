@@ -76,7 +76,7 @@ const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
     useEffect(() => {
         if (profileData) {
             // Firma verisi var mı?
-            const hasCompanyData = profileData.company && profileData.company.companyName;
+            const hasCompanyData = profileData;
             setIsCompany(!!hasCompanyData);
 
             // Kişisel verileri doldur
@@ -99,10 +99,10 @@ const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
             // Firma verisi varsa doldur, yoksa sıfırla
             if (hasCompanyData) {
                 setCompanyData({
-                    companyName: profileData.company.companyName || '',
-                    isTradeRegistered: profileData.company.isTradeRegistered || false,
-                    tradeRegisteredNumber: profileData.company.tradeRegisteredNumber || '',
-                    isRegisterOwner: profileData.company.isRegisterOwner || false,
+                    companyName: profileData.companyName || '',
+                    isTradeRegistered: profileData.isTradeRegistered || false,
+                    tradeRegisteredNumber: profileData.tradeRegisteredNumber || '',
+                    isRegisterOwner: profileData.isRegisterOwner || false,
                 });
             } else {
                 setCompanyData({
