@@ -204,11 +204,11 @@ const AccountDetails = () => {
 
             // Profile incomplete
             const isPhoneMissing = !user.isCompletedPhoneOtpVerification;
-            const isAddressMissing = !user.isCompletedEmailOtpVerification;
-            if (isPhoneMissing && isAddressMissing) {
+            const isAddressMissing =  !user.firstName || !user.isCompletedEmailOtpVerification;
+            if (isPhoneMissing && isAddressMissing ) {
                 setProfileIncomplete(true);
                 setPhoneOnlyMissing(false);
-            } else if (isPhoneMissing && !isAddressMissing) {
+            } else if (isPhoneMissing && !isAddressMissing ) {
                 setProfileIncomplete(true);
                 setPhoneOnlyMissing(true);
             } else {
