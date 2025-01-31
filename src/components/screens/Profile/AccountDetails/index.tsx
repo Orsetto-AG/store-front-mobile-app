@@ -11,6 +11,7 @@ import {
     Modal,
     KeyboardAvoidingView,
     Platform,
+    Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import moment from 'moment';
@@ -739,11 +740,16 @@ const AccountDetails = () => {
                 <Text style={{ color: 'gray', marginTop: 10 }}>No phone number yet.</Text>
             )}
 
+            {/* Delete Account Button */}
             <TouchableOpacity
-                style={[styles.updateButton, { backgroundColor: 'red', marginTop: 20 }]}
+                style={styles.deleteButton}
                 onPress={handleDeleteAccount}
             >
-                <Text style={{ color: '#fff', fontWeight: '600' }}>Delete Account</Text>
+                <Image 
+                    source={require('../../../../components/images/trash.png')}
+                    style={{ width: 20, height: 20, tintColor: '#FF4D4F' }}
+                />
+                <Text style={styles.deleteButtonText}>Delete Account</Text>
             </TouchableOpacity>
         </ScrollView>
     );
@@ -1245,151 +1251,339 @@ export default AccountDetails;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
+        backgroundColor: '#FAFBFC',
     },
     /* HEADER */
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        height: 60,
-        paddingHorizontal: 10,
+        height: Platform.OS === 'ios' ? 84 : 56,
+        paddingTop: Platform.OS === 'ios' ? 44 : 0,
+        backgroundColor: '#fff',
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(0,0,0,0.08)',
+        paddingHorizontal: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.06,
+        shadowRadius: 3,
+        elevation: 2,
     },
     headerTitle: {
         flex: 1,
-        fontSize: 18,
-        fontWeight: 'bold',
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#1A1A1A',
         textAlign: 'center',
+        letterSpacing: -0.3,
     },
     backButton: {
-        width: 40,
+        width: 36,
+        height: 36,
         justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 18,
     },
     refreshButton: {
-        width: 40,
-        alignItems: 'flex-end',
+        width: 36,
+        height: 36,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 18,
     },
 
     /* BANNER */
     profileBanner: {
-        backgroundColor: '#fff3e0',
-        padding: 15,
-        margin: 10,
-        borderRadius: 8,
+        backgroundColor: '#FFF9F0',
+        padding: 20,
+        margin: 16,
+        borderRadius: 16,
         borderWidth: 1,
-        borderColor: '#ffb84d',
+        borderColor: 'rgba(255, 102, 0, 0.15)',
+        shadowColor: '#FF6600',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        elevation: 2,
     },
     profileBannerTitle: {
         fontSize: 16,
-        fontWeight: '600',
-        color: '#FF6200',
-        marginBottom: 5,
+        fontWeight: '700',
+        color: '#FF6600',
+        marginBottom: 8,
+        letterSpacing: -0.3,
     },
     profileBannerDesc: {
-        color: '#333',
-        marginBottom: 10,
+        color: '#666',
+        fontSize: 14,
+        lineHeight: 20,
+        marginBottom: 16,
+        letterSpacing: -0.2,
     },
     profileBannerButton: {
-        backgroundColor: '#FF6200',
-        paddingVertical: 8,
-        borderRadius: 5,
+        backgroundColor: '#FF6600',
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        borderRadius: 12,
         alignItems: 'center',
+        alignSelf: 'flex-start',
+        shadowColor: '#FF6600',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 3,
     },
 
     /* TAB BAR */
     tabBar: {
         flexDirection: 'row',
+        backgroundColor: '#fff',
         borderBottomWidth: 1,
-        borderBottomColor: '#ddd',
+        borderBottomColor: 'rgba(0,0,0,0.06)',
+        paddingHorizontal: 4,
+        height: 44,
     },
     tabItem: {
         flex: 1,
-        paddingVertical: 12,
+        justifyContent: 'center',
         alignItems: 'center',
+        position: 'relative',
     },
     tabItemActive: {
-        borderBottomWidth: 3,
-        borderBottomColor: '#FF6200',
+        borderBottomWidth: 2,
+        borderBottomColor: '#FF6600',
     },
     tabText: {
-        fontSize: 14,
+        fontSize: 13,
         color: '#666',
+        letterSpacing: -0.2,
     },
     tabTextActive: {
-        color: '#FF6200',
+        color: '#FF6600',
         fontWeight: '600',
     },
 
     /* SECTIONS */
     sectionTitle: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        marginTop: 10,
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#1A1A1A',
+        marginTop: 20,
+        marginBottom: 8,
+        letterSpacing: -0.3,
     },
     sectionDesc: {
         fontSize: 13,
         color: '#666',
-        marginBottom: 10,
+        lineHeight: 18,
+        marginBottom: 16,
+        letterSpacing: -0.2,
+    },
+
+    /* LABELS */
+    label: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#4A4A4A',
+        marginTop: 12,
+        marginBottom: 4,
+        letterSpacing: -0.2,
     },
 
     /* INPUT */
     input: {
+        height: 44,
         borderWidth: 1,
-        borderColor: '#ccc',
-        borderRadius: 5,
-        paddingHorizontal: 10,
-        paddingVertical: 8,
-        marginVertical: 5,
+        borderColor: '#E5E9EC',
+        borderRadius: 10,
+        paddingHorizontal: 14,
+        fontSize: 14,
+        color: '#1A1A1A',
+        backgroundColor: '#fff',
+        marginVertical: 6,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+        elevation: 1,
+        letterSpacing: -0.2,
     },
     inputRow: {
         flexDirection: 'row',
-        marginTop: 10,
+        marginTop: 12,
     },
-    label: {
-        marginTop: 10,
+
+    /* EDIT BUTTON */
+    editBtn: {
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        alignSelf: 'flex-start',
+        borderRadius: 8,
+        marginTop: 8,
+        backgroundColor: '#F5F7F9',
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    editBtnText: {
+        color: '#4A4A4A',
+        fontWeight: '500',
+        fontSize: 13,
+        letterSpacing: -0.2,
+    },
+
+    /* VERIFY BUTTON */
+    verifyButton: {
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 10,
+        alignSelf: 'flex-start',
+        marginVertical: 8,
+        backgroundColor: '#FF6600',
+        shadowColor: '#FF6600',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.12,
+        shadowRadius: 6,
+        elevation: 2,
+    },
+    verifyButtonText: {
+        color: '#fff',
         fontWeight: '600',
-        marginBottom: 5,
+        fontSize: 13,
+        letterSpacing: -0.2,
+    },
+    verifyInfoText: {
+        fontSize: 13,
+        color: '#666',
+        lineHeight: 18,
+        marginVertical: 8,
+        letterSpacing: -0.2,
+    },
+
+    /* UPDATE BUTTON */
+    updateButton: {
+        marginTop: 20,
+        paddingVertical: 14,
+        borderRadius: 10,
+        alignItems: 'center',
+        backgroundColor: '#FF6600',
+        shadowColor: '#FF6600',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+        elevation: 3,
+    },
+
+    /* MODAL */
+    modalBackground: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalCard: {
+        width: '90%',
+        backgroundColor: '#fff',
+        borderRadius: 16,
+        padding: 24,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+        elevation: 6,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#1A1A1A',
+        marginBottom: 16,
+        letterSpacing: -0.3,
+    },
+    modalInput: {
+        height: 44,
+        borderWidth: 1,
+        borderColor: '#E5E9EC',
+        borderRadius: 10,
+        paddingHorizontal: 14,
+        fontSize: 14,
+        color: '#1A1A1A',
+        backgroundColor: '#fff',
+        marginVertical: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+        elevation: 1,
+    },
+    modalButtonRow: {
+        flexDirection: 'row',
+        marginTop: 24,
+    },
+    modalButton: {
+        flex: 1,
+        marginHorizontal: 4,
+        paddingVertical: 14,
+        borderRadius: 10,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+        elevation: 2,
+    },
+
+    /* DELETE ACCOUNT */
+    deleteButton: {
+        marginTop: 32,
+        marginBottom: 20,
+        paddingVertical: 14,
+        paddingHorizontal: 20,
+        borderRadius: 10,
+        backgroundColor: '#FFF1F0',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 77, 79, 0.12)',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        alignSelf: 'center',
+        shadowColor: '#FF4D4F',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 6,
+        elevation: 1,
+    },
+    deleteButtonText: {
+        color: '#FF4D4F',
+        fontWeight: '600',
+        fontSize: 13,
+        marginLeft: 8,
+        letterSpacing: -0.2,
     },
 
     /* GENDER */
     genderContainer: {
         flexDirection: 'row',
-        marginVertical: 5,
+        marginVertical: 12,
     },
     genderOption: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
         borderWidth: 1,
-        borderColor: '#ccc',
-        padding: 8,
-        borderRadius: 5,
-        marginRight: 10,
+        borderColor: '#E5E9EC',
+        padding: 14,
+        borderRadius: 12,
+        marginRight: 12,
+        backgroundColor: '#fff',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 4,
+        elevation: 1,
     },
     genderOptionSelected: {
-        borderColor: '#FF6200',
-        backgroundColor: '#ffe6d9',
-    },
-
-    /* UPDATE BUTTON */
-    updateButton: {
-        marginTop: 15,
-        paddingVertical: 12,
-        borderRadius: 6,
-        alignItems: 'center',
-    },
-
-    /* EDIT BUTTON (membership tab) */
-    editBtn: {
-        paddingHorizontal: 8,
-        paddingVertical: 6,
-        alignSelf: 'flex-start',
-        borderRadius: 4,
-        marginBottom: 10,
-        marginTop: 5,
-        backgroundColor: '#e0e0e0',
-    },
-    editBtnText: {
-        color: '#333',
-        fontWeight: '600',
+        borderColor: '#FF6600',
+        backgroundColor: '#FFF9F0',
     },
 
     /* BILLING */
@@ -1397,70 +1591,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-    },
-
-    /* ADDRESS VERIFY */
-    verifyInfoText: {
-        fontSize: 13,
-        color: '#666',
-        marginVertical: 5,
-    },
-    verifyButton: {
-        paddingVertical: 10,
-        paddingHorizontal: 15,
-        borderRadius: 5,
-        alignSelf: 'flex-start',
-        marginBottom: 10,
-        marginTop: 5,
-    },
-    verifyButtonText: {
-        color: '#fff',
-        fontWeight: '600',
-    },
-
-    /* MODAL BACKGROUND */
-    modalBackground: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    /* MODAL CARD */
-    modalCard: {
-        width: '90%',
-        backgroundColor: '#fff',
-        borderRadius: 10,
-        padding: 20,
-        // Shadow for iOS & Android
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 3,
-        elevation: 5,
-    },
-    modalTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginBottom: 10,
-        color: '#333',
-    },
-    modalInput: {
-        borderWidth: 1,
-        borderColor: '#ccc',
-        borderRadius: 5,
-        paddingHorizontal: 10,
-        paddingVertical: 8,
-        marginVertical: 5,
-    },
-    modalButtonRow: {
-        flexDirection: 'row',
-        marginTop: 20,
-    },
-    modalButton: {
-        flex: 1,
-        marginHorizontal: 5,
-        paddingVertical: 12,
-        borderRadius: 6,
-        alignItems: 'center',
+        marginTop: 36,
+        marginBottom: 20,
     },
 });
