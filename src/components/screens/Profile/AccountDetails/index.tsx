@@ -17,6 +17,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import moment from 'moment';
 import { useNavigation } from '@react-navigation/native';
 import CompleteProfileModal from '../CompleteProfile';
+import {logout} from "../../../redux/slices/authSlice.ts";
+import {useDispatch} from "react-redux";
 const TABS = {
     MEMBERSHIP: 0,
     PASSWORD: 1,
@@ -98,7 +100,7 @@ const AccountDetails = () => {
     const [registerPersonName, setRegisterPersonName] = useState('');
     const [registerPersonSurname, setRegisterPersonSurname] = useState('');
     const [registerPersonSex, setRegisterPersonSex] = useState<'male' | 'female' | 'other' | ''>('');
-
+    const dispatch = useDispatch();
     useEffect(() => {
         fetchUserData();
     }, []);
@@ -601,7 +603,7 @@ const AccountDetails = () => {
                 throw new Error('Account deletion failed.');
             }
             Alert.alert('Success', 'Your account has been deleted!');
-            // logout or navigate
+            await AsyncStorage.removeItem('token');
         } catch (error: any) {
             Alert.alert('Error', error.message);
         }
@@ -1115,21 +1117,7 @@ const AccountDetails = () => {
     const renderCompanyTab = () => {
         return (
             <ScrollView style={{ flex: 1, padding: 15 }}>
-                <Text style={styles.sectionTitle}>Gewerbe / Privatperson</Text>
-
-                {/* İki buton veya Switch */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 10 }}>
-                    <Text style={{ marginRight: 10 }}>Privatperson</Text>
-                    <Switch
-                        value={isCompany}
-                        onValueChange={(val) => {
-                            setIsCompany(val);
-                        }}
-                    />
-
-                    <Text style={{ marginLeft: 10 }}>Gewerbe</Text>
-                </View>
-
+                <Text style={styles.sectionTitle}>Gewerbe</Text>
                 {isCompany && (
                     <>
                         <Text style={{ marginTop: 10 }}>Company Name</Text>
