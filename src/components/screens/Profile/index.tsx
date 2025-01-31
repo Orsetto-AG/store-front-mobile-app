@@ -72,9 +72,28 @@ const Profile = () => {
         fetchProfileData();
     }, []);
 
+    // LOGOUT FONKSİYONU GÜNCELLENDİ
     const handleLogout = async () => {
-        await AsyncStorage.removeItem('token');
-        dispatch(logout());
+        try {
+            const token = await AsyncStorage.getItem('token');
+            if (token) {
+                await axios.post(
+                    'https://api.orsetto.ch/api/customer/logout',
+                    {},
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                        },
+                    }
+                );
+            }
+        } catch (error) {
+            console.error('Logout isteği sırasında hata oluştu:', error);
+        } finally {
+            // Token'ı temizle ve Redux logout aksiyonunu tetikle
+            await AsyncStorage.removeItem('token');
+            dispatch(logout());
+        }
     };
 
     const handleMenuItemPress = (id: string) => {
@@ -158,8 +177,6 @@ const Profile = () => {
             const token = await AsyncStorage.getItem('token');
             if (!token) return;
 
-            // mimeType tespiti: fileName'den uzantıyı çekiyoruz
-            // yoksa default olarak image/jpeg varsayıyoruz
             let mimeType = 'image/jpeg';
             if (selectedImage.fileName) {
                 const extension = selectedImage.fileName.split('.').pop()?.toLowerCase();
@@ -168,10 +185,8 @@ const Profile = () => {
                 } else if (extension === 'jpg' || extension === 'jpeg') {
                     mimeType = 'image/jpeg';
                 }
-                // isterseniz daha fazla uzantı kontrol edebilirsiniz
             }
 
-            // API'ye data:<mimeType>;base64,<base64Data> formatında gönderiyoruz
             const putBody = {
                 avatar: `data:${mimeType};base64,${selectedImage.base64}`,
             };
@@ -187,9 +202,7 @@ const Profile = () => {
             );
 
             if (response.data?.status === 1) {
-                // Başarılı yükleme
                 setAvatarModalVisible(false);
-                // Profil verisini tekrar çekip güncelle
                 fetchProfileData();
                 setSelectedImage(null);
             } else {
@@ -203,9 +216,7 @@ const Profile = () => {
 
     // Base64 verisi 1MB'ı aşıyor mu kontrol fonksiyonu
     const isBase64OverLimit = (base64: string, limitBytes: number) => {
-        // Base64 string'in yaklaşık byte boyutu
-        // Base64'te 4 karakter ~ 3 byte veri tuttuğu için,
-        // (stringLength * 3) / 4 ile byte'ı hesaplayabilirsiniz.
+        // Base64'te 4 karakter ~ 3 byte veri tuttuğu için (stringLength * 3) / 4 şeklinde hesaplanır
         const sizeInBytes = (base64.length * 3) / 4;
         return sizeInBytes > limitBytes;
     };
@@ -236,7 +247,6 @@ const Profile = () => {
             <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
                 {/* Avatar ve İsim */}
                 <View style={styles.header}>
-                    {/* Avatar Container */}
                     {profileData?.avatarUrl ? (
                         <TouchableOpacity onPress={handleAvatarPress}>
                             <Image
@@ -313,12 +323,10 @@ const Profile = () => {
                             </TouchableOpacity>
                         </View>
 
-                        {/* Hata mesajı */}
                         {errorMessage && (
                             <Text style={styles.errorText}>{errorMessage}</Text>
                         )}
 
-                        {/* Seçilen resim önizleme */}
                         {selectedImage && (
                             <View style={styles.previewContainer}>
                                 <Image

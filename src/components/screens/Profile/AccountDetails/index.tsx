@@ -193,18 +193,18 @@ const AccountDetails = () => {
                 await AsyncStorage.removeItem('addressOtpSent');
             }
 
-                // Billing
-                setBillingStreet(user.billingStreet || '');
-                setBillingStreetNumber(user.billingStreetNumber || '');
-                setBillingZipCode(user.billingZipCode || '');
-                setBillingCity(user.billingCity || '');
-                setBillingCountry(user.billingCountry || '');
+            // Billing
+            setBillingStreet(user.billingStreet || '');
+            setBillingStreetNumber(user.billingStreetNumber || '');
+            setBillingZipCode(user.billingZipCode || '');
+            setBillingCity(user.billingCity || '');
+            setBillingCountry(user.billingCountry || '');
 
 
 
             // Profile incomplete
-            const isPhoneMissing = !user.isCompletedKycVerification;
-            const isAddressMissing = !user.isCompletedKycVerification;
+            const isPhoneMissing = !user.isCompletedPhoneOtpVerification;
+            const isAddressMissing = !user.isCompletedEmailOtpVerification;
             if (isPhoneMissing && isAddressMissing) {
                 setProfileIncomplete(true);
                 setPhoneOnlyMissing(false);
@@ -265,7 +265,7 @@ const AccountDetails = () => {
             setCompletePhoneStep(1); // go to OTP step
         } catch (error: any) {
             Alert.alert('Hah', error.message);
-           // setCompletePhoneStep(1);
+            // setCompletePhoneStep(1);
         }
     };
 
@@ -292,7 +292,6 @@ const AccountDetails = () => {
             }
 
             Alert.alert('Success', 'Your phone has been verified!');
-            // Now phoneNumber is in backend, re-fetch user data:
             closeCompletePhoneModal();
             fetchUserData();
         } catch (error: any) {

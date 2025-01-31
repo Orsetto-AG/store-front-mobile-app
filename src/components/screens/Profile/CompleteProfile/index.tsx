@@ -69,7 +69,23 @@ const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
         tradeRegisteredNumber: '',
         isRegisterOwner: false, // “Zeichnungsberechtigung”
     });
-
+    // --- Privatperson Seçildiğinde ---
+    const handleSelectPrivatePerson = () => {
+        setIsCompany(false);
+        // Firma bilgilerini sıfırlayın ki form alanlarında da gözüksün
+        setCompanyData({
+            companyName: '',
+            isTradeRegistered: false,
+            tradeRegisteredNumber: '',
+            isRegisterOwner: false,
+        });
+    };
+// --- Gewerbe Seçildiğinde ---
+    const handleSelectCompany = () => {
+        setIsCompany(true);
+        // İsterseniz burada companyData’ya varsayılanları yeniden atayabilirsiniz
+        // (profileData varsa ordan çekebilirsiniz).
+    };
     const [isDatePickerOpen, setDatePickerOpen] = useState(false);
 
     // Modal açıldığında veya profileData değiştiğinde input alanlarına verileri doldur
@@ -115,29 +131,27 @@ const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
         }
     }, [profileData]);
 
-    // Profil güncelleme
+    // --- handleUpdate Fonksiyonu ---
     const handleUpdate = async () => {
         try {
             const token = await AsyncStorage.getItem('token');
 
+            // Request gövdesi
             const requestBody = {
                 personal: {
                     ...personalData,
                     // Tarihi "YYYY-MM-DD" formatına çevirelim
                     birthday: personalData.birthday.toISOString().split('T')[0],
                 },
+                // Eğer isCompany = false ise company: null gönderiyoruz
                 company: isCompany ? { ...companyData } : null,
             };
 
-            await axios.put(
-                'https://api.orsetto.ch/api/customer/complete-profile',
-                requestBody,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`, // Token ekledik
-                    },
-                }
-            );
+            await axios.put('https://api.orsetto.ch/api/customer/complete-profile', requestBody, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
 
             onProfileUpdate();
             onClose();
@@ -213,7 +227,7 @@ const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
                                     styles.accountTypeButton,
                                     !isCompany && styles.activeAccountTypeButton,
                                 ]}
-                                onPress={() => setIsCompany(false)}
+                                onPress={handleSelectPrivatePerson}
                             >
                                 <Text
                                     style={[
@@ -224,12 +238,13 @@ const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
                                     Privatperson
                                 </Text>
                             </TouchableOpacity>
+
                             <TouchableOpacity
                                 style={[
                                     styles.accountTypeButton,
                                     isCompany && styles.activeAccountTypeButton,
                                 ]}
-                                onPress={() => setIsCompany(true)}
+                                onPress={handleSelectCompany}
                             >
                                 <Text
                                     style={[

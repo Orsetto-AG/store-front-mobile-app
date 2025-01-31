@@ -116,12 +116,10 @@ const AuthScreen = () => {
                 navigation.navigate('OtpMail' as never);
             } else {
                 const errorMessage = getErrorMessage(resultAction.payload);
-                Alert.alert('Registration Failed', errorMessage);
-                navigation.navigate('OtpMail' as never);
+                //  Alert.alert('Registration Failed', errorMessage);
             }
         } catch (err: any) {
             console.error('Register Error:', err);
-            navigation.navigate('OtpMail' as never);
             Alert.alert(
                 'Registration Error',
                 getErrorMessage(err)
@@ -189,7 +187,7 @@ const AuthScreen = () => {
                         <Text style={styles.errorText}>I forgot my password</Text>
                     </TouchableOpacity>
                     {loading && <ActivityIndicator size="large" color="#FF6200" />}
-                  {/*  {error && <Text style={styles.errorText}>{getErrorMessage(error)}</Text>}*/}
+                    {/*  {error && <Text style={styles.errorText}>{getErrorMessage(error)}</Text>}*/}
                     <TouchableOpacity
                         style={[styles.button, loading && styles.disabledButton]}
                         onPress={handleLogin}
