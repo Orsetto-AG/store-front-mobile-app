@@ -24,7 +24,7 @@ const OtpMail = () => {
 
     useEffect(() => {
         if (!pendingEmail) {
-            navigation.navigate('Auth' as never);
+            //navigation.navigate('Tabbar' as never);
         } else {
             setTimeout(() => {
                 inputRefs.current[0]?.focus();
@@ -85,9 +85,6 @@ const OtpMail = () => {
         }
     };
 
-    const handleChangeEmail = () => {
-        navigation.navigate('Auth' as never);
-    };
 
     return (
         <View style={styles.container}>
@@ -123,7 +120,7 @@ const OtpMail = () => {
 
                 <View style={styles.emailChangeContainer}>
                     <Text style={styles.emailChangeText}> </Text>
-                    <TouchableOpacity onPress={handleChangeEmail}>
+                    <TouchableOpacity>
                         <Text style={styles.changeLink}></Text>
                     </TouchableOpacity>
                 </View>

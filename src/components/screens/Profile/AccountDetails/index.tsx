@@ -101,9 +101,7 @@ const AccountDetails = () => {
     const [registerPersonSurname, setRegisterPersonSurname] = useState('');
     const [registerPersonSex, setRegisterPersonSex] = useState<'male' | 'female' | 'other' | ''>('');
     const dispatch = useDispatch();
-    useEffect(() => {
-        fetchUserData();
-    }, []);
+
 
     // Fetch user data
     const fetchUserData = async () => {
@@ -220,6 +218,9 @@ const AccountDetails = () => {
             Alert.alert('Error', error.message);
         }
     };
+    useEffect(() => {
+        fetchUserData();
+    }, []);
     // Eğer user artık isCompany değilse, "Company" sekmesi aktif kalmasın diye
     useEffect(() => {
         if (!isCompany && activeTab === TABS.COMPANY) {
@@ -604,6 +605,8 @@ const AccountDetails = () => {
             }
             Alert.alert('Success', 'Your account has been deleted!');
             await AsyncStorage.removeItem('token');
+            dispatch(logout());
+            navigation.navigate('AuthScreen')
         } catch (error: any) {
             Alert.alert('Error', error.message);
         }
@@ -699,8 +702,7 @@ const AccountDetails = () => {
                         activeTab === TABS.MEMBERSHIP && styles.tabTextActive,
                     ]}
                 >
-                    My membership information
-                </Text>
+                    Membership Info</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -713,7 +715,7 @@ const AccountDetails = () => {
                         activeTab === TABS.PASSWORD && styles.tabTextActive,
                     ]}
                 >
-                    Password change
+                    Password Change
                 </Text>
             </TouchableOpacity>
 

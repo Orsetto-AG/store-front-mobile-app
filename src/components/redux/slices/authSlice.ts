@@ -1,6 +1,9 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import { Alert } from 'react-native';
+import { useDispatch } from 'react-redux';
+import { useNavigation } from '@react-navigation/native';
 
 const LOGIN_URL = 'https://api.orsetto.ch/api/customer/login';
 const REGISTER_URL = 'https://api.orsetto.ch/api/customer/register';
@@ -68,11 +71,14 @@ export const verifyOtp = createAsyncThunk(
                 otp: parseInt(otp, 10),
             };
             const response = await axios.post(VERIFY_OTP_URL, requestBody);
+
             if (response.data.status === 1) {
-                return {
-                    token: 'verified',
-                    user: { emailId },
-                };
+                const { token, user } = response.data.data;
+
+                // ======> BURADA token'ı AsyncStorage'a kaydedin <======
+                await AsyncStorage.setItem('token', token);
+
+                return { token, user };
             }
             return rejectWithValue('Verification failed. Please try again.');
         } catch (error: any) {
@@ -80,6 +86,7 @@ export const verifyOtp = createAsyncThunk(
         }
     }
 );
+
 
 // authSlice
 const authSlice = createSlice({
@@ -142,6 +149,7 @@ const authSlice = createSlice({
                 state.error = null;
             })
             .addCase(verifyOtp.fulfilled, (state, action) => {
+                console.log('Token received:', action.payload.token);
                 state.loading = false;
                 state.token = action.payload.token;
                 state.user = action.payload.user;
