@@ -1188,11 +1188,6 @@ const AccountDetails = () => {
     const renderCompanyTab = () => (
         <ScrollView style={{ flex: 1, padding: 15 }}>
             <Text style={styles.sectionTitle}>Gewerbe</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
-                <Text style={{ flex: 1 }}>Firma (isCompany)?</Text>
-                <Switch value={isCompany} onValueChange={(val) => setIsCompany(val)} />
-            </View>
-
             {isCompany && (
                 <>
                     <Text style={{ marginTop: 10 }}>Company Name</Text>
