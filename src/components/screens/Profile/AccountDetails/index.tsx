@@ -12,7 +12,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     Switch,
-    useColorScheme
+    useColorScheme,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -23,10 +23,10 @@ import { logout } from '../../../redux/slices/authSlice.ts';
 import { useDispatch } from 'react-redux';
 
 const TABS = {
-    MEMBERSHIP: 0,
-    PASSWORD: 1,
-    ADDRESS: 2,
-    COMPANY: 3,
+    KONTO: 0,
+    SICHERHEIT: 1,
+    PRAEFERENZEN: 2,
+    COMPANY: 3, // Sadece isCompany true iken görünecek
 };
 
 const languageOptions = [
@@ -51,7 +51,7 @@ const AccountDetails = () => {
 
     const backgroundColor = theme === 'dark' ? '#222' : '#fff';
     const textColor = theme === 'dark' ? '#fff' : '#000';
-    const [activeTab, setActiveTab] = useState(TABS.MEMBERSHIP);
+    const [activeTab, setActiveTab] = useState(TABS.KONTO);
 
     // Email & Phone
     const [email, setEmail] = useState('');
@@ -67,13 +67,17 @@ const AccountDetails = () => {
     const [birthday, setBirthday] = useState('');
     const [gender, setGender] = useState<'male' | 'female' | ''>('');
 
-    // Sadece languageCode editable
+    // languageCode editable => “Präferenzen” sekmesinde gösterilecek
     const [languageCode, setLanguageCode] = useState('');
+
+    // 2FA toggles
+    const [authenticatorAppEnabled, setAuthenticatorAppEnabled] = useState(false);
+    const [smsAuthEnabled, setSmsAuthEnabled] = useState(false);
 
     // Password
     const [oldPassword, setOldPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
-    const [showPasswordFields, setShowPasswordFields] = useState(false);
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
     const [showOldPass, setShowOldPass] = useState(false);
     const [showNewPass, setShowNewPass] = useState(false);
     const [passwordError, setPasswordError] = useState('');
@@ -100,7 +104,7 @@ const AccountDetails = () => {
     const [profileIncomplete, setProfileIncomplete] = useState(false);
     const [phoneOnlyMissing, setPhoneOnlyMissing] = useState(false);
 
-    // Edit & Verify Modal (sadece username, languageCode, email, phone için kullanacağız)
+    // Edit & Verify Modal (username, languageCode, email, phone)
     const [editModalVisible, setEditModalVisible] = useState(false);
     const [editField, setEditField] = useState<string | null>(null);
     const [editValue, setEditValue] = useState<string>('');
@@ -125,7 +129,7 @@ const AccountDetails = () => {
     const [isModalVisible, setModalVisible] = useState(false);
     const [profileData, setProfileData] = useState<any>(null);
 
-    // Şirket ile ilgili state'ler:
+    // Şirket ile ilgili state
     const [isCompany, setIsCompany] = useState(false);
     const [companyName, setCompanyName] = useState('');
     const [isTradeRegistered, setIsTradeRegistered] = useState(false);
@@ -135,19 +139,43 @@ const AccountDetails = () => {
     const [registerPersonSurname, setRegisterPersonSurname] = useState('');
     const [registerPersonSex, setRegisterPersonSex] = useState<'male' | 'female' | 'other' | ''>('');
 
-    // Delete account confirmation
+    // Hesap silme onayı
     const confirmDeleteAccount = () => {
         Alert.alert(
-            'Hesabı silmek istiyor musunuz?',
-            'Bu işlemi onaylıyor musunuz?',
+            'Konto löschen?',
+            'Diese Aktion kann nicht rückgängig gemacht werden. Fortfahren?',
             [
-                { text: 'Hayır', style: 'cancel' },
-                { text: 'Evet', style: 'destructive', onPress: handleDeleteAccount },
+                { text: 'Abbrechen', style: 'cancel' },
+                { text: 'Ja, löschen', style: 'destructive', onPress: handleDeleteAccount },
             ],
             { cancelable: true },
         );
     };
 
+    const handleDeleteAccount = async () => {
+        try {
+            const token = await AsyncStorage.getItem('token');
+            const response = await fetch('https://api.orsetto.ch/api/customer/delete-account', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token || ''}`,
+                },
+            });
+            if (!response.ok) {
+                throw new Error('Account deletion failed.');
+            }
+            Alert.alert('Success', 'Your account has been deleted!');
+            await AsyncStorage.removeItem('token');
+            await AsyncStorage.removeItem('addressOtpSent');
+            dispatch(logout());
+            navigation.navigate('AuthScreen');
+        } catch (error: any) {
+            Alert.alert('Error', error.message);
+        }
+    };
+
+    // Kullanıcı verilerini çek
     const fetchUserData = async () => {
         try {
             const token = await AsyncStorage.getItem('token');
@@ -196,9 +224,14 @@ const AccountDetails = () => {
             setUsername(user.username || '');
             setFirstName(user.firstName || '');
             setLastName(user.lastName || '');
-            setBirthday(user.birthday ? moment(user.birthday).format('DD-MM-YYYY') : '');
+            setBirthday(user.birthday ? moment(user.birthday).format('DD.MM.YYYY') : '');
             setGender(user.gender || '');
             setLanguageCode(user.languageCode || '');
+
+            // 2FA toggles (dummy, gerçek API henüz yoksa bile state olarak saklayabiliriz)
+            // Bunu gerçek verilerle doldurmak isterseniz backend yanıtını set edebilirsiniz.
+            // Örneğin: setAuthenticatorAppEnabled(!!user.authenticatorAppEnabled);
+            // setSmsAuthEnabled(!!user.smsAuthEnabled);
 
             // Main Address
             setStreet(user.street || '');
@@ -223,7 +256,6 @@ const AccountDetails = () => {
             setBillingZipCode(user.billingZipCode || '');
             setBillingCity(user.billingCity || '');
             setBillingCountry(user.billingCountry || '');
-            // # Burada billing doldurulmuşsa direkt aç:
             const isBillingAddressFilled =
                 !!(
                     user.billingStreet ||
@@ -237,7 +269,8 @@ const AccountDetails = () => {
             } else {
                 setShowBilling(false);
             }
-            // Profile incomplete
+
+            // Profilin tamamlanmamış olması
             const isPhoneMissing = !user.isCompletedPhoneOtpVerification;
             const isAddressMissing = !user.firstName || !user.isCompletedEmailOtpVerification;
             if (isPhoneMissing && isAddressMissing) {
@@ -258,116 +291,14 @@ const AccountDetails = () => {
         fetchUserData();
     }, []);
 
-    // Şirket tabından çıkma
+    // isCompany false olduğunda firma sekmesi aktif olmamalı
     useEffect(() => {
         if (!isCompany && activeTab === TABS.COMPANY) {
-            setActiveTab(TABS.MEMBERSHIP);
+            setActiveTab(TABS.KONTO);
         }
     }, [isCompany, activeTab]);
 
-    // =============== COMPLETE PHONE FLOW ===============
-    const openCompletePhoneModal = () => {
-        setCompletePhoneModalVisible(true);
-        setCompletePhoneStep(0);
-        setTempPhone('');
-        setTempPhoneCountryCode('+49');
-        setTempOtp('');
-    };
-
-    const closeCompletePhoneModal = () => {
-        setCompletePhoneModalVisible(false);
-        setCompletePhoneStep(0);
-        setTempPhone('');
-        setTempPhoneCountryCode('+49');
-        setTempOtp('');
-    };
-
-    // 1) Send phone OTP
-    const handleSendSmsOtp = async () => {
-        try {
-            if (!tempPhone) {
-                Alert.alert('Hata', 'Lütfen telefon numarasını giriniz.');
-                return;
-            }
-            const token = await AsyncStorage.getItem('token');
-            const fullNumber = tempPhoneCountryCode + tempPhone;
-            const body = { mobileNo: fullNumber };
-            const response = await fetch('https://api.orsetto.ch/api/customer/send-otp-sms', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token || ''}`,
-                },
-                body: JSON.stringify(body),
-            });
-
-            if (!response.ok) {
-                const errMsg = await response.text();
-                throw new Error(errMsg || 'Could not send OTP.');
-            }
-
-            Alert.alert('Başarılı', `OTP ${fullNumber} numarasına gönderildi.`);
-            setCompletePhoneStep(1);
-        } catch (error: any) {
-            Alert.alert('Hata', error.message);
-        }
-    };
-
-    // 2) Validate phone OTP
-    const handleValidateSmsOtp = async () => {
-        try {
-            if (!tempOtp) {
-                Alert.alert('Hata', 'Lütfen OTP kodunu giriniz.');
-                return;
-            }
-            const token = await AsyncStorage.getItem('token');
-            const body = { otp: parseInt(tempOtp, 10) };
-            const response = await fetch('https://api.orsetto.ch/api/customer/otp-validation-sms', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token || ''}`,
-                },
-                body: JSON.stringify(body),
-            });
-
-            if (!response.ok) {
-                const errMsg = await response.text();
-                throw new Error(errMsg || 'Phone validation failed.');
-            }
-
-            Alert.alert('Success', 'Your phone has been verified!');
-            closeCompletePhoneModal();
-            fetchUserData();
-        } catch (error: any) {
-            Alert.alert('Error', error.message);
-        }
-    };
-
-    // Delete account
-    const handleDeleteAccount = async () => {
-        try {
-            const token = await AsyncStorage.getItem('token');
-            const response = await fetch('https://api.orsetto.ch/api/customer/delete-account', {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token || ''}`,
-                },
-            });
-            if (!response.ok) {
-                throw new Error('Account deletion failed.');
-            }
-            Alert.alert('Success', 'Your account has been deleted!');
-            await AsyncStorage.removeItem('token');
-            dispatch(logout());
-            navigation.navigate('AuthScreen');
-        } catch (error: any) {
-            Alert.alert('Error', error.message);
-        }
-    };
-
-    // Change password
+    // Password değiştir
     const handleChangePassword = async () => {
         setPasswordError('');
         if (!oldPassword || !newPassword) {
@@ -400,13 +331,13 @@ const AccountDetails = () => {
             Alert.alert('Success', 'Your password has been changed!');
             setOldPassword('');
             setNewPassword('');
-            setShowPasswordFields(false);
+            setShowPasswordModal(false);
         } catch (error: any) {
             Alert.alert('Error', error.message);
         }
     };
 
-    // Save main address
+    // Adresi kaydet
     const handleChangeAddress = async () => {
         setAddressError('');
         if (!zipCode || !city || !street || !streetNumber || !country) {
@@ -434,7 +365,7 @@ const AccountDetails = () => {
         }
     };
 
-    // Save billing address
+    // Fatura adresini kaydet
     const handleChangeBillingAddress = async () => {
         setBillingError('');
         if (!billingZipCode || !billingCity || !billingStreet || !billingStreetNumber || !billingCountry) {
@@ -468,7 +399,7 @@ const AccountDetails = () => {
         }
     };
 
-    // Edit & Verify Modal (only for username, languageCode, email, phone)
+    // Edit & Verify Modal
     const openEditModal = (field: string, currentValue: string) => {
         setEditField(field);
         setEditValue(currentValue);
@@ -477,12 +408,6 @@ const AccountDetails = () => {
         setOtpValue('');
         setPendingFieldToVerify(null);
         setPendingNewValue('');
-
-        // Örnek: phone
-        if (field === 'phone') {
-            // Bu noktada istersek "ülke kodu + local" parse edebiliriz vs.
-        }
-
         setEditModalVisible(true);
     };
 
@@ -498,7 +423,7 @@ const AccountDetails = () => {
     };
 
     const handleSaveValue = async () => {
-        if (!editField) return;
+        if (!editField) {return;}
 
         try {
             const token = await AsyncStorage.getItem('token');
@@ -547,7 +472,6 @@ const AccountDetails = () => {
                 setIsPhoneVerified(false);
                 setNeedOtpStep(true);
             } else {
-                // Username, language => no OTP
                 closeEditModal();
                 fetchUserData();
             }
@@ -557,7 +481,7 @@ const AccountDetails = () => {
     };
 
     const handleVerifyOtp = async () => {
-        if (!pendingFieldToVerify || !pendingNewValue) return;
+        if (!pendingFieldToVerify || !pendingNewValue) {return;}
         try {
             const token = await AsyncStorage.getItem('token');
             let endpoint = '';
@@ -603,7 +527,7 @@ const AccountDetails = () => {
         }
     };
 
-    // Address OTP
+    // Adres OTP
     const openAddressModal = () => {
         setAddressOtp('');
         setAddressModalVisible(true);
@@ -612,7 +536,6 @@ const AccountDetails = () => {
         setAddressOtp('');
         setAddressModalVisible(false);
     };
-
     const handleSendAddressOtp = async () => {
         try {
             const token = await AsyncStorage.getItem('token');
@@ -634,7 +557,6 @@ const AccountDetails = () => {
             Alert.alert('Error', error.message);
         }
     };
-
     const handleValidateAddressOtp = async () => {
         try {
             if (!addressOtp) {
@@ -668,11 +590,84 @@ const AccountDetails = () => {
         }
     };
 
+    // Telefon tamamlama
+    const openCompletePhoneModal = () => {
+        setCompletePhoneModalVisible(true);
+        setCompletePhoneStep(0);
+        setTempPhone('');
+        setTempPhoneCountryCode('+49');
+        setTempOtp('');
+    };
+    const closeCompletePhoneModal = () => {
+        setCompletePhoneModalVisible(false);
+        setCompletePhoneStep(0);
+        setTempPhone('');
+        setTempPhoneCountryCode('+49');
+        setTempOtp('');
+    };
+    const handleSendSmsOtp = async () => {
+        try {
+            if (!tempPhone) {
+                Alert.alert('Hata', 'Lütfen telefon numarasını giriniz.');
+                return;
+            }
+            const token = await AsyncStorage.getItem('token');
+            const fullNumber = tempPhoneCountryCode + tempPhone;
+            const body = { mobileNo: fullNumber };
+            const response = await fetch('https://api.orsetto.ch/api/customer/send-otp-sms', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token || ''}`,
+                },
+                body: JSON.stringify(body),
+            });
+            if (!response.ok) {
+                const errMsg = await response.text();
+                throw new Error(errMsg || 'Could not send OTP.');
+            }
+
+            Alert.alert('Başarılı', `OTP ${fullNumber} numarasına gönderildi.`);
+            setCompletePhoneStep(1);
+        } catch (error: any) {
+            Alert.alert('Hata', error.message);
+        }
+    };
+    const handleValidateSmsOtp = async () => {
+        try {
+            if (!tempOtp) {
+                Alert.alert('Hata', 'Lütfen OTP kodunu giriniz.');
+                return;
+            }
+            const token = await AsyncStorage.getItem('token');
+            const body = { otp: parseInt(tempOtp, 10) };
+            const response = await fetch('https://api.orsetto.ch/api/customer/otp-validation-sms', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token || ''}`,
+                },
+                body: JSON.stringify(body),
+            });
+            if (!response.ok) {
+                const errMsg = await response.text();
+                throw new Error(errMsg || 'Phone validation failed.');
+            }
+
+            Alert.alert('Success', 'Your phone has been verified!');
+            closeCompletePhoneModal();
+            fetchUserData();
+        } catch (error: any) {
+            Alert.alert('Error', error.message);
+        }
+    };
+
     // Şirket sekmesi
     const handleSaveCompanyInfo = async () => {
         try {
             const token = await AsyncStorage.getItem('token');
             if (!isCompany) {
+                // Firma kapalıysa datayı sıfırla
                 const removeBody = {
                     companyName: '',
                     isTradeRegistered: false,
@@ -726,6 +721,7 @@ const AccountDetails = () => {
         }
     };
 
+    // Profil tamamla
     const handleCompleteProfile = () => {
         if (phoneOnlyMissing) {
             openCompletePhoneModal();
@@ -734,561 +730,536 @@ const AccountDetails = () => {
         }
     };
 
-    // Tab bar
+    // Sekme render fonksiyonları
     const renderTabBar = () => (
-        <View style={styles.tabBar}>
+        <View style={styles.topTabsContainer}>
             <TouchableOpacity
-                style={[styles.tabItem, activeTab === TABS.MEMBERSHIP && styles.tabItemActive]}
-                onPress={() => setActiveTab(TABS.MEMBERSHIP)}
+                style={[
+                    styles.topTab,
+                    activeTab === TABS.KONTO && styles.topTabActive,
+                ]}
+                onPress={() => setActiveTab(TABS.KONTO)}
             >
-                <Text style={[styles.tabText, activeTab === TABS.MEMBERSHIP && styles.tabTextActive]}>
-                    Membership Info
+                <Text
+                    style={[
+                        styles.topTabText,
+                        activeTab === TABS.KONTO && styles.topTabTextActive,
+                    ]}
+                >
+                    Konto
                 </Text>
             </TouchableOpacity>
-
             <TouchableOpacity
-                style={[styles.tabItem, activeTab === TABS.PASSWORD && styles.tabItemActive]}
-                onPress={() => setActiveTab(TABS.PASSWORD)}
+                style={[
+                    styles.topTab,
+                    activeTab === TABS.SICHERHEIT && styles.topTabActive,
+                ]}
+                onPress={() => setActiveTab(TABS.SICHERHEIT)}
             >
-                <Text style={[styles.tabText, activeTab === TABS.PASSWORD && styles.tabTextActive]}>
-                    Password Change
+                <Text
+                    style={[
+                        styles.topTabText,
+                        activeTab === TABS.SICHERHEIT && styles.topTabTextActive,
+                    ]}
+                >
+                    Sicherheit
                 </Text>
             </TouchableOpacity>
-
             <TouchableOpacity
-                style={[styles.tabItem, activeTab === TABS.ADDRESS && styles.tabItemActive]}
-                onPress={() => setActiveTab(TABS.ADDRESS)}
+                style={[
+                    styles.topTab,
+                    activeTab === TABS.PRAEFERENZEN && styles.topTabActive,
+                ]}
+                onPress={() => setActiveTab(TABS.PRAEFERENZEN)}
             >
-                <Text style={[styles.tabText, activeTab === TABS.ADDRESS && styles.tabTextActive]}>
-                    Edit Address
+                <Text
+                    style={[
+                        styles.topTabText,
+                        activeTab === TABS.PRAEFERENZEN && styles.topTabTextActive,
+                    ]}
+                >
+                    Präferenzen
                 </Text>
             </TouchableOpacity>
-
             {isCompany && (
                 <TouchableOpacity
-                    style={[styles.tabItem, activeTab === TABS.COMPANY && styles.tabItemActive]}
+                    style={[
+                        styles.topTab,
+                        activeTab === TABS.COMPANY && styles.topTabActive,
+                    ]}
                     onPress={() => setActiveTab(TABS.COMPANY)}
                 >
-                    <Text style={[styles.tabText, activeTab === TABS.COMPANY && styles.tabTextActive]}>
-                        Company
+                    <Text
+                        style={[
+                            styles.topTabText,
+                            activeTab === TABS.COMPANY && styles.topTabTextActive,
+                        ]}
+                    >
+                        Firma
                     </Text>
                 </TouchableOpacity>
             )}
         </View>
     );
 
-    // MEMBERSHIP TAB
-    const renderMembershipTab = () => (
-        <ScrollView style={{ flex: 1, padding: 15 }} keyboardShouldPersistTaps="handled">
-            <Text style={styles.sectionTitle}>Profile details</Text>
-            <Text style={styles.sectionDesc}>Here you can see your profile information.</Text>
+    // KONTO TAB => Kullanıcı bilgileri, adresler, bildirimler, hesap silme
+    const renderKontoTab = () => (
+        <ScrollView style={styles.tabContent} keyboardShouldPersistTaps="handled">
+            {/* Benutzerkonto-Daten Card */}
+            <View style={styles.card}>
+                <Text style={styles.cardTitle}>Benutzerkonto-Daten</Text>
+                <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Benutzername</Text>
+                    <View style={styles.infoValueContainer}>
+                        <Text style={styles.infoValue}>{username}</Text>
+                        <TouchableOpacity
+                            onPress={() => openEditModal('username', username)}
+                            style={styles.infoEditButton}
+                        >
+                            <Text style={styles.infoEditButtonText}>Bearbeiten</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+                <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>E-Mail</Text>
+                    <View style={styles.infoValueContainer}>
+                        <Text style={styles.infoValue}>
+                            {email}
+                            {isEmailVerified ? ' (Verifiziert)' : ' (Nicht verifiziert)'}
+                        </Text>
+                        <TouchableOpacity
+                            onPress={() => openEditModal('email', email)}
+                            style={styles.infoEditButton}
+                        >
+                            <Text style={styles.infoEditButtonText}>Bearbeiten</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+                <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Geburtsdatum</Text>
+                    <Text style={styles.infoValue}>{birthday || 'Nicht angegeben'}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Telefonnummer</Text>
+                    <View style={styles.infoValueContainer}>
+                        <Text style={styles.infoValue}>
+                            {phoneNumber
+                                ? `${phoneNumber} ${
+                                    isPhoneVerified ? '(Verifiziert)' : '(Nicht verifiziert)'
+                                }`
+                                : 'Nicht angegeben'}
+                        </Text>
+                        {phoneNumber  ?  <TouchableOpacity
+                            onPress={() =>
+                                phoneNumber
+                                    ? openEditModal('phone', phoneNumber)
+                                    : openEditModal('phone', '')
+                            }
+                            style={styles.infoEditButton}
+                        >
+                            <Text style={styles.infoEditButtonText}>Bearbeiten</Text>
+                        </TouchableOpacity> : null}
 
-            {/* firstName & lastName read-only */}
-            <View style={styles.inputRow}>
-                <View style={{ flex: 1, marginRight: 5 }}>
-                    <Text>Name & Surname</Text>
+                    </View>
+                </View>
+            </View>
+
+            {/* Adresse Card */}
+            <View style={styles.card}>
+                <View style={styles.cardHeaderRow}>
+                    <Text style={styles.cardTitle}>Adresse</Text>
+                    {!isCompletedAddressVerification && (
+                        <Text style={styles.addressVerify}>
+                            Adresse verifizieren
+                        </Text>
+                    )}
+                </View>
+                <Text style={styles.subInfo}>{`Strasse: ${street} ${streetNumber || ''}`}</Text>
+                <Text style={styles.subInfo}>{`PLZ/Ort: ${zipCode} ${city}`}</Text>
+                <Text style={styles.subInfo}>{`Land: ${country}`}</Text>
+
+                {!isCompletedAddressVerification && (
+                    <View style={{ marginTop: 10 }}>
+                        {!addressOtpSent ? (
+                            <TouchableOpacity
+                                style={styles.verifyAddressButton}
+                                onPress={handleSendAddressOtp}
+                            >
+                                <Text style={styles.verifyAddressButtonText}>
+                                    Adresse jetzt verifizieren
+                                </Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <TouchableOpacity
+                                style={styles.verifyAddressButton}
+                                onPress={openAddressModal}
+                            >
+                                <Text style={styles.verifyAddressButtonText}>Code eingeben</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                )}
+
+                <TouchableOpacity
+                    style={styles.editAddressBtn}
+                    onPress={() => setActiveTab(TABS.KONTO)} // Tab'tan çıkmıyoruz, modal yok
+                >
+                    <Text style={styles.editAddressBtnText}>Bearbeiten</Text>
+                </TouchableOpacity>
+
+                {addressError ? (
+                    <View style={styles.errorBox}>
+                        <Text style={styles.errorText}>{addressError}</Text>
+                    </View>
+                ) : null}
+
+                {/* Adresi düzenleme alanları */}
+                <View style={styles.editAddressContainer}>
+                    <View style={styles.inputRow}>
+                        <View style={{ flex: 1, marginRight: 5 }}>
+                            <Text>PLZ</Text>
+                            <TextInput
+                                style={styles.input}
+                                keyboardType="number-pad"
+                                value={zipCode}
+                                onChangeText={setZipCode}
+                            />
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 5 }}>
+                            <Text>Ort</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={city}
+                                onChangeText={setCity}
+                            />
+                        </View>
+                    </View>
+                    <View style={styles.inputRow}>
+                        <View style={{ flex: 1, marginRight: 5 }}>
+                            <Text>Strasse</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={street}
+                                onChangeText={setStreet}
+                            />
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 5 }}>
+                            <Text>Nr.</Text>
+                            <TextInput
+                                style={styles.input}
+                                keyboardType="number-pad"
+                                value={streetNumber}
+                                onChangeText={setStreetNumber}
+                            />
+                        </View>
+                    </View>
+                    <Text style={{ marginTop: 10 }}>Land</Text>
                     <TextInput
                         style={styles.input}
-                        value={(firstName + ' ' + lastName).trim()}
-                        editable={false}
-                        placeholderTextColor="#999"
+                        value={country}
+                        onChangeText={setCountry}
+                    />
+
+                    <TouchableOpacity
+                        style={styles.saveAddressBtn}
+                        onPress={handleChangeAddress}
+                    >
+                        <Text style={styles.saveAddressBtnText}>Adresse speichern</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+
+            {/* Rechnungsadresse Card */}
+            <View style={styles.card}>
+                <Text style={styles.cardTitle}>Rechnungsadresse</Text>
+                <Text style={styles.subInfo}>
+                    {`Strasse: ${billingStreet} ${billingStreetNumber || ''}`}
+                </Text>
+                <Text style={styles.subInfo}>{`PLZ/Ort: ${billingZipCode} ${billingCity}`}</Text>
+                <Text style={styles.subInfo}>{`Land: ${billingCountry}`}
+                </Text>
+
+                <TouchableOpacity
+                    style={styles.editAddressBtn}
+                    onPress={() => setShowBilling(!showBilling)}
+                >
+                    <Text style={styles.editAddressBtnText}>
+                        {showBilling ? 'Schließen' : 'Bearbeiten'}
+                    </Text>
+                </TouchableOpacity>
+
+                {showBilling && (
+                    <>
+                        {billingError ? (
+                            <View style={styles.errorBox}>
+                                <Text style={styles.errorText}>{billingError}</Text>
+                            </View>
+                        ) : null}
+
+                        <View style={styles.editAddressContainer}>
+                            <View style={styles.inputRow}>
+                                <View style={{ flex: 1, marginRight: 5 }}>
+                                    <Text>PLZ</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        keyboardType="number-pad"
+                                        value={billingZipCode}
+                                        onChangeText={setBillingZipCode}
+                                    />
+                                </View>
+                                <View style={{ flex: 1, marginLeft: 5 }}>
+                                    <Text>Ort</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        value={billingCity}
+                                        onChangeText={setBillingCity}
+                                    />
+                                </View>
+                            </View>
+                            <View style={styles.inputRow}>
+                                <View style={{ flex: 1, marginRight: 5 }}>
+                                    <Text>Strasse</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        value={billingStreet}
+                                        onChangeText={setBillingStreet}
+                                    />
+                                </View>
+                                <View style={{ flex: 1, marginLeft: 5 }}>
+                                    <Text>Nr.</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        keyboardType="number-pad"
+                                        value={billingStreetNumber}
+                                        onChangeText={setBillingStreetNumber}
+                                    />
+                                </View>
+                            </View>
+                            <Text style={{ marginTop: 10 }}>Land</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={billingCountry}
+                                onChangeText={setBillingCountry}
+                            />
+
+                            <TouchableOpacity
+                                style={styles.saveAddressBtn}
+                                onPress={handleChangeBillingAddress}
+                            >
+                                <Text style={styles.saveAddressBtnText}>Rechnungsadresse speichern</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </>
+                )}
+            </View>
+
+            {/* Benachrichtigungen Card */}
+            <View style={styles.card}>
+                <Text style={styles.cardTitle}>Benachrichtigungen</Text>
+                {/* Örnek toggle: E-Mail */}
+                <View style={styles.toggleRow}>
+                    <Text style={styles.toggleLabel}>E-Mail-Benachrichtigungen</Text>
+                    <Switch
+                        // Burada state ve setState ekleyebilirsiniz
+                        value={false}
+                        onValueChange={() => {}}
                     />
                 </View>
+                {/* Örnek toggle: Push */}
+                <View style={styles.toggleRow}>
+                    <Text style={styles.toggleLabel}>Push-Benachrichtigungen</Text>
+                    <Switch
+                        // Burada state ve setState ekleyebilirsiniz
+                        value={false}
+                        onValueChange={() => {}}
+                    />
+                </View>
+            </View>
 
-                <View style={{ flex: 1, marginLeft: 5 }}>
-                    <Text>Username</Text>
-                    {/* username editable */}
-                    <View>
+            {/* Konto löschen */}
+            <View style={styles.card}>
+                <Text style={styles.deleteAccountTitle}>Konto löschen</Text>
+                <Text style={styles.deleteAccountDesc}>
+                    Diese Aktion kann nicht rückgängig gemacht werden.
+                </Text>
+                <TouchableOpacity
+                    style={styles.deleteAccountBtn}
+                    onPress={confirmDeleteAccount}
+                >
+                    <Text style={styles.deleteAccountBtnText}>Löschung Bearbeiten</Text>
+                </TouchableOpacity>
+            </View>
+        </ScrollView>
+    );
+
+    // SICHERHEIT TAB => 2FA, Password
+    const renderSicherheitTab = () => (
+        <ScrollView style={styles.tabContent}>
+            <View style={styles.card}>
+                <Text style={styles.cardTitle}>Zwei-Faktor-Authentifizierung</Text>
+
+                <View style={styles.toggleRow}>
+                    <Text style={styles.toggleLabel}>Authenticator-App</Text>
+                    <Switch
+                        value={authenticatorAppEnabled}
+                        onValueChange={(val) => setAuthenticatorAppEnabled(val)}
+                    />
+                </View>
+                <View style={styles.toggleRow}>
+                    <Text style={styles.toggleLabel}>SMS-Authentifizierung</Text>
+                    <Switch
+                        value={smsAuthEnabled}
+                        onValueChange={(val) => setSmsAuthEnabled(val)}
+                    />
+                </View>
+            </View>
+            <View style={styles.card}>
+                <Text style={styles.cardTitle}>Passwort & Sicherheit</Text>
+                <TouchableOpacity
+                    style={styles.changePasswordBtn}
+                    onPress={() => setShowPasswordModal(true)}
+                >
+                    <Text style={styles.changePasswordBtnText}>Passwort ändern</Text>
+                </TouchableOpacity>
+            </View>
+        </ScrollView>
+    );
+
+    // PRÄFERENZEN TAB => Sprache, Zahlungseinstellungen
+    const renderPraeferenzenTab = () => (
+        <ScrollView style={styles.tabContent}>
+            <View style={styles.card}>
+                <Text style={styles.cardTitle}>Sprache</Text>
+                <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Aktuelle Sprache</Text>
+                    <View style={styles.infoValueContainer}>
+                        <Text style={styles.infoValue}>{languageCode || 'Unbekannt'}</Text>
+                        <TouchableOpacity
+                            onPress={() => openEditModal('languageCode', languageCode)}
+                            style={styles.infoEditButton}
+                        >
+                            <Text style={styles.infoEditButtonText}>Ändern</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+            <View style={styles.card}>
+                <Text style={styles.cardTitle}>Zahlungseinstellungen</Text>
+                <Text style={[styles.subInfo, { marginBottom: 5 }]}>
+                    Standardzahlungsmethode
+                </Text>
+                <Text style={styles.infoValue}>TWINT</Text>
+                <TouchableOpacity style={styles.managePaymentBtn}>
+                    <Text style={styles.managePaymentBtnText}>Verwalten</Text>
+                </TouchableOpacity>
+            </View>
+        </ScrollView>
+    );
+
+    // COMPANY TAB (Firma)
+    const renderCompanyTab = () => (
+        <ScrollView style={styles.tabContent}>
+            <View style={styles.card}>
+                <Text style={styles.cardTitle}>Firma / Gewerbe</Text>
+                <View style={styles.toggleRow}>
+                    <Text style={styles.toggleLabel}>Ist ein Unternehmen?</Text>
+                    <Switch
+                        value={isCompany}
+                        onValueChange={(val) => setIsCompany(val)}
+                    />
+                </View>
+                {isCompany && (
+                    <>
+                        <Text style={styles.label}>Firmenname</Text>
                         <TextInput
                             style={styles.input}
-                            value={username}
-                            editable={false}
-                            placeholderTextColor="#999"
+                            value={companyName}
+                            onChangeText={setCompanyName}
+                            placeholder="z.B. Muster GmbH"
                         />
-                        <TouchableOpacity
-                            style={styles.editBtn}
-                            onPress={() => openEditModal('username', username)}
-                        >
-                            <Text style={styles.editBtnText}>Edit</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </View>
-
-            {/* birthday read-only */}
-            <Text style={{ marginTop: 10 }}>Birthday</Text>
-            <TextInput style={styles.input} value={birthday} editable={false} placeholderTextColor="#999" />
-
-            {/* gender read-only */}
-            <Text style={{ marginTop: 10 }}>Gender</Text>
-            <View style={styles.genderContainer}>
-                <TouchableOpacity
-                    style={[styles.genderOption, gender === 'female' && styles.genderOptionSelected]}
-                    disabled
-                >
-                    <Text>Female</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.genderOption, gender === 'male' && styles.genderOptionSelected]}
-                    disabled
-                >
-                    <Text>Male</Text>
-                </TouchableOpacity>
-            </View>
-
-            {/* Language code => editable */}
-            <Text style={styles.label}>Language Code</Text>
-            <TextInput
-                style={styles.input}
-                value={languageCode}
-                editable={false}
-                placeholderTextColor="#999"
-            />
-            <TouchableOpacity
-                style={styles.editBtn}
-                onPress={() => openEditModal('languageCode', languageCode)}
-            >
-                <Text style={styles.editBtnText}>Edit</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.sectionTitle}>Contact information</Text>
-
-            {/* EMAIL => editable */}
-            <Text>
-                Email{' '}
-                {isEmailVerified ? (
-                    <Text style={{ color: 'green' }}>(Verified ✅)</Text>
-                ) : (
-                    <Text style={{ color: 'red' }}>(Not Verified ❌)</Text>
-                )}
-            </Text>
-            <TextInput
-                style={styles.input}
-                value={email}
-                editable={false}
-                placeholder="Email"
-                placeholderTextColor="#999"
-            />
-            <TouchableOpacity style={styles.editBtn} onPress={() => openEditModal('email', email)}>
-                <Text style={styles.editBtnText}>Edit</Text>
-            </TouchableOpacity>
-
-            {/* PHONE => editable */}
-            {phoneNumber.length > 0 ? (
-                <>
-                    <Text style={{ marginTop: 10 }}>
-                        Phone{' '}
-                        {isPhoneVerified ? (
-                            <Text style={{ color: 'green' }}>(Verified ✅)</Text>
-                        ) : (
-                            <Text style={{ color: 'red' }}>(Not Verified ❌)</Text>
+                        <View style={styles.toggleRow}>
+                            <Text style={styles.toggleLabel}>Handelsregister?</Text>
+                            <Switch
+                                value={isTradeRegistered}
+                                onValueChange={val => setIsTradeRegistered(val)}
+                            />
+                        </View>
+                        {isTradeRegistered && (
+                            <>
+                                <Text style={styles.label}>Handelsregister Nr.</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={tradeRegisteredNumber}
+                                    onChangeText={setTradeRegisteredNumber}
+                                    placeholder="CH-ZH-xxxxx"
+                                />
+                            </>
                         )}
-                    </Text>
-                    <TextInput
-                        style={styles.input}
-                        value={phoneNumber}
-                        editable={false}
-                        keyboardType="number-pad"
-                        placeholderTextColor="#999"
-                    />
-                    <TouchableOpacity
-                        style={styles.editBtn}
-                        onPress={() => openEditModal('phone', phoneNumber)}
-                    >
-                        <Text style={styles.editBtnText}>Edit</Text>
-                    </TouchableOpacity>
-                </>
-            ) : (
-                <Text style={{ color: 'gray', marginTop: 10 }}>No phone number yet.</Text>
-            )}
-
-            <TouchableOpacity
-                style={[styles.updateButton, { backgroundColor: 'red', marginTop: 20 }]}
-                onPress={confirmDeleteAccount}
-            >
-                <Text style={{ color: '#fff', fontWeight: '600' }}>Delete Account</Text>
-            </TouchableOpacity>
-        </ScrollView>
-    );
-
-    // PASSWORD TAB
-    const renderPasswordTab = () => (
-        <ScrollView style={{ flex: 1, padding: 15 }} keyboardShouldPersistTaps="handled">
-            <Text style={styles.sectionTitle}>Change Password</Text>
-            <Text style={styles.sectionDesc}>
-                Your password must include a digit and a punctuation mark, and be at least 8 chars.
-            </Text>
-
-            {!showPasswordFields && (
-                <TouchableOpacity
-                    style={[styles.updateButton, { backgroundColor: '#FF6200', marginTop: 10 }]}
-                    onPress={() => setShowPasswordFields(true)}
-                >
-                    <Text style={{ color: '#fff', fontWeight: '600' }}>
-                        Şifreyi Değiştir / Hesap Güvenliği
-                    </Text>
-                </TouchableOpacity>
-            )}
-
-            {showPasswordFields && (
-                <>
-                    {passwordError ? (
-                        <View style={styles.errorBox}>
-                            <Text style={styles.errorText}>{passwordError}</Text>
+                        <View style={styles.toggleRow}>
+                            <Text style={styles.toggleLabel}>Zeichnungsberechtigt?</Text>
+                            <Switch
+                                value={!isRegisterOwner}
+                                onValueChange={() => setIsRegisterOwner((prev) => !prev)}
+                            />
                         </View>
-                    ) : null}
-
-                    <Text>Current Password</Text>
-                    <View style={styles.passwordRow}>
-                        <TextInput
-                            style={[styles.input, { flex: 1 }]}
-                            secureTextEntry={!showOldPass}
-                            value={oldPassword}
-                            onChangeText={setOldPassword}
-                            placeholder="Current password"
-                            placeholderTextColor="#999"
-                        />
+                        {!isRegisterOwner && (
+                            <>
+                                <Text style={styles.label}>Vorname</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={registerPersonName}
+                                    onChangeText={setRegisterPersonName}
+                                />
+                                <Text style={styles.label}>Nachname</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={registerPersonSurname}
+                                    onChangeText={setRegisterPersonSurname}
+                                />
+                                <Text style={styles.label}>Geschlecht</Text>
+                                <View style={styles.genderContainer}>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.genderOption,
+                                            registerPersonSex === 'female' &&
+                                            styles.genderOptionSelected,
+                                        ]}
+                                        onPress={() => setRegisterPersonSex('female')}
+                                    >
+                                        <Text>Weiblich</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.genderOption,
+                                            registerPersonSex === 'male' &&
+                                            styles.genderOptionSelected,
+                                        ]}
+                                        onPress={() => setRegisterPersonSex('male')}
+                                    >
+                                        <Text>Männlich</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.genderOption,
+                                            registerPersonSex === 'other' &&
+                                            styles.genderOptionSelected,
+                                        ]}
+                                        onPress={() => setRegisterPersonSex('other')}
+                                    >
+                                        <Text>Andere</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </>
+                        )}
                         <TouchableOpacity
-                            onPress={() => setShowOldPass(!showOldPass)}
-                            style={styles.eyeBtn}
+                            style={styles.saveAddressBtn}
+                            onPress={handleSaveCompanyInfo}
                         >
-                            <Text>{showOldPass ? 'Hide' : 'Show'}</Text>
+                            <Text style={styles.saveAddressBtnText}>Speichern</Text>
                         </TouchableOpacity>
-                    </View>
-
-                    <Text>New Password</Text>
-                    <View style={styles.passwordRow}>
-                        <TextInput
-                            style={[styles.input, { flex: 1 }]}
-                            secureTextEntry={!showNewPass}
-                            value={newPassword}
-                            onChangeText={setNewPassword}
-                            placeholder="New password"
-                            placeholderTextColor="#999"
-                        />
-                        <TouchableOpacity
-                            onPress={() => setShowNewPass(!showNewPass)}
-                            style={styles.eyeBtn}
-                        >
-                            <Text>{showNewPass ? 'Hide' : 'Show'}</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <TouchableOpacity
-                        style={[styles.updateButton, { backgroundColor: '#FF6200' }]}
-                        onPress={handleChangePassword}
-                    >
-                        <Text style={{ color: '#fff', fontWeight: '600' }}>Change</Text>
-                    </TouchableOpacity>
-                </>
-            )}
-        </ScrollView>
-    );
-
-    // ADDRESS TAB
-    const renderAddressTab = () => (
-        <ScrollView style={{ flex: 1, padding: 15 }} keyboardShouldPersistTaps="handled">
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={styles.sectionTitle}>Main Address </Text>
-                {isCompletedAddressVerification ? (
-                    <Text style={{ color: 'green', marginTop: 10 }}> (Verified ✅)</Text>
-                ) : (
-                    <Text style={{ color: 'red', marginTop: 10 }}> (Not Verified ❌)</Text>
+                    </>
                 )}
             </View>
-
-            {!isCompletedAddressVerification && (
-                <>
-                    <Text style={styles.verifyInfoText}>
-                        This code will be delivered to your address by post.
-                    </Text>
-
-                    {!addressOtpSent ? (
-                        <TouchableOpacity
-                            style={[styles.verifyButton, { backgroundColor: '#FF6200' }]}
-                            onPress={handleSendAddressOtp}
-                        >
-                            <Text style={styles.verifyButtonText}>Verify Now</Text>
-                        </TouchableOpacity>
-                    ) : (
-                        <TouchableOpacity
-                            style={[styles.verifyButton, { backgroundColor: '#FF6200' }]}
-                            onPress={openAddressModal}
-                        >
-                            <Text style={styles.verifyButtonText}>Enter Code</Text>
-                        </TouchableOpacity>
-                    )}
-                </>
-            )}
-
-            {addressError ? (
-                <View style={styles.errorBox}>
-                    <Text style={styles.errorText}>{addressError}</Text>
-                </View>
-            ) : null}
-
-            <View style={styles.inputRow}>
-                <View style={{ flex: 1, marginRight: 5 }}>
-                    <Text>Postcode</Text>
-                    <TextInput
-                        style={styles.input}
-                        keyboardType="number-pad"
-                        value={zipCode}
-                        onChangeText={setZipCode}
-                        placeholder="Zip code"
-                        placeholderTextColor="#999"
-                    />
-                </View>
-                <View style={{ flex: 1, marginLeft: 5 }}>
-                    <Text>City</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={city}
-                        onChangeText={setCity}
-                        placeholder="City"
-                        placeholderTextColor="#999"
-                    />
-                </View>
-            </View>
-
-            <View style={styles.inputRow}>
-                <View style={{ flex: 1, marginRight: 5 }}>
-                    <Text>Street name</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={street}
-                        onChangeText={setStreet}
-                        placeholder="Street name"
-                        placeholderTextColor="#999"
-                    />
-                </View>
-                <View style={{ flex: 1, marginLeft: 5 }}>
-                    <Text>House no</Text>
-                    <TextInput
-                        style={styles.input}
-                        keyboardType="number-pad"
-                        value={streetNumber}
-                        onChangeText={setStreetNumber}
-                        placeholder="House no."
-                        placeholderTextColor="#999"
-                    />
-                </View>
-            </View>
-
-            <Text style={{ marginTop: 10 }}>Country</Text>
-            <TextInput
-                style={styles.input}
-                value={country}
-                onChangeText={setCountry}
-                placeholder="Country"
-                placeholderTextColor="#999"
-            />
-
-            <TouchableOpacity
-                style={[styles.updateButton, { backgroundColor: '#FF6200', marginTop: 10 }]}
-                onPress={handleChangeAddress}
-            >
-                <Text style={{ color: '#fff', fontWeight: '600' }}>Save Main Address</Text>
-            </TouchableOpacity>
-
-            <View style={[styles.billingHeader, { marginTop: 30 }]}>
-                <Text style={styles.sectionTitle}>Billing Address</Text>
-                <TouchableOpacity onPress={() => setShowBilling(!showBilling)}>
-                    <Text style={{ color: '#FF6200' }}>
-                        {showBilling
-                            ? 'Hide'
-                            : (billingStreet ||
-                                billingStreetNumber ||
-                                billingZipCode ||
-                                billingCity ||
-                                billingCountry)
-                                ? 'Show Billing Address'
-                                : '+ Add Billing Address'}
-                    </Text>
-                </TouchableOpacity>
-            </View>
-
-            {showBilling && (
-                <>
-                    {billingError ? (
-                        <View style={styles.errorBox}>
-                            <Text style={styles.errorText}>{billingError}</Text>
-                        </View>
-                    ) : null}
-
-                    <View style={styles.inputRow}>
-                        <View style={{ flex: 1, marginRight: 5 }}>
-                            <Text>Postcode</Text>
-                            <TextInput
-                                style={styles.input}
-                                keyboardType="number-pad"
-                                value={billingZipCode}
-                                onChangeText={setBillingZipCode}
-                                placeholder="Zip code"
-                                placeholderTextColor="#999"
-                            />
-                        </View>
-                        <View style={{ flex: 1, marginLeft: 5 }}>
-                            <Text>City</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={billingCity}
-                                onChangeText={setBillingCity}
-                                placeholder="City"
-                                placeholderTextColor="#999"
-                            />
-                        </View>
-                    </View>
-
-                    <View style={styles.inputRow}>
-                        <View style={{ flex: 1, marginRight: 5 }}>
-                            <Text>Street name</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={billingStreet}
-                                onChangeText={setBillingStreet}
-                                placeholder="Street name"
-                                placeholderTextColor="#999"
-                            />
-                        </View>
-                        <View style={{ flex: 1, marginLeft: 5 }}>
-                            <Text>House no</Text>
-                            <TextInput
-                                style={styles.input}
-                                keyboardType="number-pad"
-                                value={billingStreetNumber}
-                                onChangeText={setBillingStreetNumber}
-                                placeholder="House no."
-                                placeholderTextColor="#999"
-                            />
-                        </View>
-                    </View>
-
-                    <Text style={{ marginTop: 10 }}>Country</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={billingCountry}
-                        onChangeText={setBillingCountry}
-                        placeholder="Country"
-                        placeholderTextColor="#999"
-                    />
-
-                    <TouchableOpacity
-                        style={[styles.updateButton, { backgroundColor: '#FF6200', marginTop: 10 }]}
-                        onPress={handleChangeBillingAddress}
-                    >
-                        <Text style={{ color: '#fff', fontWeight: '600' }}>Save Billing Address</Text>
-                    </TouchableOpacity>
-                </>
-            )}
-        </ScrollView>
-    );
-
-    // COMPANY TAB
-    const renderCompanyTab = () => (
-        <ScrollView style={{ flex: 1, padding: 15 }}>
-            <Text style={styles.sectionTitle}>Gewerbe</Text>
-            {isCompany && (
-                <>
-                    <Text style={{ marginTop: 10 }}>Company Name</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={companyName}
-                        onChangeText={setCompanyName}
-                        placeholder="Company Name"
-                        placeholderTextColor="#999"
-                    />
-
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
-                        <Text style={{ flex: 1 }}>Handelsregister?</Text>
-                        <Switch
-                            value={isTradeRegistered}
-                            onValueChange={(val) => setIsTradeRegistered(val)}
-                        />
-                    </View>
-
-                    {isTradeRegistered && (
-                        <>
-                            <Text style={{ marginTop: 10 }}>Handelsregister Nr.</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={tradeRegisteredNumber}
-                                onChangeText={setTradeRegisteredNumber}
-                                placeholder="CH-ZH-xxxxx"
-                                placeholderTextColor="#999"
-                            />
-                        </>
-                    )}
-
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
-                        <Text style={{ flex: 1 }}>Zeichnungsberechtigt?</Text>
-                        <Switch
-                            value={!isRegisterOwner}
-                            onValueChange={() => setIsRegisterOwner((prev) => !prev)}
-                        />
-                    </View>
-
-                    {!isRegisterOwner && (
-                        <>
-                            <Text style={{ marginTop: 10 }}>Zeichnungsberechtigte/r Vorname</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={registerPersonName}
-                                onChangeText={setRegisterPersonName}
-                                placeholder="Name"
-                                placeholderTextColor="#999"
-                            />
-
-                            <Text style={{ marginTop: 10 }}>Zeichnungsberechtigte/r Nachname</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={registerPersonSurname}
-                                onChangeText={setRegisterPersonSurname}
-                                placeholder="Surname"
-                                placeholderTextColor="#999"
-                            />
-
-                            <Text style={{ marginTop: 10 }}>Geschlecht</Text>
-                            <View style={{ flexDirection: 'row', marginVertical: 5 }}>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.genderOption,
-                                        registerPersonSex === 'female' && styles.genderOptionSelected,
-                                    ]}
-                                    onPress={() => setRegisterPersonSex('female')}
-                                >
-                                    <Text>Female</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.genderOption,
-                                        registerPersonSex === 'male' && styles.genderOptionSelected,
-                                    ]}
-                                    onPress={() => setRegisterPersonSex('male')}
-                                >
-                                    <Text>Male</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.genderOption,
-                                        registerPersonSex === 'other' && styles.genderOptionSelected,
-                                    ]}
-                                    onPress={() => setRegisterPersonSex('other')}
-                                >
-                                    <Text>Other</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </>
-                    )}
-                </>
-            )}
-
-            <TouchableOpacity
-                style={[styles.updateButton, { backgroundColor: '#FF6200', marginTop: 20 }]}
-                onPress={handleSaveCompanyInfo}
-            >
-                <Text style={{ color: '#fff', fontWeight: '600' }}>Save</Text>
-            </TouchableOpacity>
         </ScrollView>
     );
 
@@ -1298,27 +1269,35 @@ const AccountDetails = () => {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
             <SafeAreaView style={styles.container}>
+                {/* Profil tamamlama banner */}
                 {profileIncomplete && (
                     <View style={styles.profileBanner}>
                         <Text style={styles.profileBannerTitle}>
-                            {phoneOnlyMissing ? 'Complete your phone number' : 'Complete your profile'}
+                            {phoneOnlyMissing
+                                ? 'Telefonnummer vervollständigen'
+                                : 'Profil vervollständigen'}
                         </Text>
                         <Text style={styles.profileBannerDesc}>
-                            To get full access to features, please complete your profile.
+                            Um alle Funktionen nutzen zu können, vervollständige bitte dein Profil.
                         </Text>
-                        <TouchableOpacity style={styles.profileBannerButton} onPress={handleCompleteProfile}>
+                        <TouchableOpacity
+                            style={styles.profileBannerButton}
+                            onPress={handleCompleteProfile}
+                        >
                             <Text style={{ color: '#fff', fontWeight: '600' }}>
-                                {phoneOnlyMissing ? 'COMPLETE PHONE NUMBER' : 'COMPLETE NOW'}
+                                {phoneOnlyMissing ? 'JETZT TELEFONNUMMER' : 'JETZT VERVOLLSTÄNDIGEN'}
                             </Text>
                         </TouchableOpacity>
                     </View>
                 )}
 
+                {/* Tab menüsü */}
                 {renderTabBar()}
 
-                {activeTab === TABS.MEMBERSHIP && renderMembershipTab()}
-                {activeTab === TABS.PASSWORD && renderPasswordTab()}
-                {activeTab === TABS.ADDRESS && renderAddressTab()}
+                {/* Sekme içeriği */}
+                {activeTab === TABS.KONTO && renderKontoTab()}
+                {activeTab === TABS.SICHERHEIT && renderSicherheitTab()}
+                {activeTab === TABS.PRAEFERENZEN && renderPraeferenzenTab()}
                 {isCompany && activeTab === TABS.COMPANY && renderCompanyTab()}
 
                 {/* EDIT & VERIFY MODAL (username, languageCode, email, phone) */}
@@ -1332,20 +1311,20 @@ const AccountDetails = () => {
                         <View style={styles.modalCard}>
                             <Text style={styles.modalTitle}>
                                 {editField === 'email' || editField === 'phone'
-                                    ? `Change & Verify ${editField}`
-                                    : `Edit ${editField}`}
+                                    ? `Änderung & Verifizierung (${editField})`
+                                    : `Bearbeiten (${editField})`}
                             </Text>
 
                             {!needOtpStep && (
                                 <>
                                     {editField === 'username' && (
                                         <>
-                                            <Text style={styles.label}>New Username</Text>
+                                            <Text style={styles.label}>Neuer Benutzername</Text>
                                             <TextInput
                                                 style={styles.modalInput}
                                                 value={editValue}
                                                 onChangeText={setEditValue}
-                                                placeholder="Enter new username"
+                                                placeholder="Neuer Benutzername"
                                                 placeholderTextColor="#999"
                                             />
                                         </>
@@ -1353,20 +1332,14 @@ const AccountDetails = () => {
 
                                     {editField === 'languageCode' && (
                                         <>
-                                            <Text style={styles.label}>Language</Text>
+                                            <Text style={styles.label}>Sprache wählen</Text>
                                             <Picker
                                                 selectedValue={editValue}
                                                 style={[
                                                     styles.picker,
-                                                    {
-                                                        backgroundColor,
-                                                        color: textColor,
-                                                    }
+                                                    { backgroundColor, color: textColor },
                                                 ]}
                                                 onValueChange={(val) => setEditValue(val)}
-                                                itemStyle={{
-                                                    color: textColor,
-                                                }}
                                             >
                                                 {languageOptions.map((opt) => (
                                                     <Picker.Item
@@ -1382,23 +1355,23 @@ const AccountDetails = () => {
 
                                     {editField === 'email' && (
                                         <>
-                                            <Text style={styles.label}>New Email</Text>
+                                            <Text style={styles.label}>Neue E-Mail</Text>
                                             <TextInput
                                                 style={styles.modalInput}
                                                 value={editValue}
                                                 onChangeText={setEditValue}
                                                 autoCapitalize="none"
                                                 keyboardType="email-address"
-                                                placeholder="Enter new email"
+                                                placeholder="E-Mail eingeben"
                                                 placeholderTextColor="#999"
                                             />
-                                            <Text style={styles.label}>Password (required)</Text>
+                                            <Text style={styles.label}>Passwort (erforderlich)</Text>
                                             <TextInput
                                                 style={styles.modalInput}
                                                 secureTextEntry
                                                 value={editPassword}
                                                 onChangeText={setEditPassword}
-                                                placeholder="Enter your password"
+                                                placeholder="Passwort eingeben"
                                                 placeholderTextColor="#999"
                                             />
                                         </>
@@ -1406,22 +1379,16 @@ const AccountDetails = () => {
 
                                     {editField === 'phone' && (
                                         <>
-                                            <Text style={styles.label}>Country Code</Text>
+                                            <Text style={styles.label}>Landesvorwahl</Text>
                                             <Picker
                                                 selectedValue={tempPhoneCountryCode}
                                                 style={[
                                                     styles.picker,
-                                                    {
-                                                        backgroundColor,
-                                                        color: textColor,
-                                                    }
+                                                    { backgroundColor, color: textColor },
                                                 ]}
-                                                onValueChange={(value) => {
-                                                    setTempPhoneCountryCode(value);
-                                                }}
-                                                itemStyle={{
-                                                    color: textColor,
-                                                }}
+                                                onValueChange={(value) =>
+                                                    setTempPhoneCountryCode(value)
+                                                }
                                             >
                                                 {phoneCountryCodes.map((opt) => (
                                                     <Picker.Item
@@ -1432,22 +1399,22 @@ const AccountDetails = () => {
                                                     />
                                                 ))}
                                             </Picker>
-                                            <Text style={styles.label}>New Phone (local part)</Text>
+                                            <Text style={styles.label}>Neue Telefonnummer</Text>
                                             <TextInput
                                                 style={styles.modalInput}
                                                 keyboardType="number-pad"
                                                 value={editValue}
                                                 onChangeText={setEditValue}
-                                                placeholder="Enter local part"
+                                                placeholder="z.B. 123456789"
                                                 placeholderTextColor="#999"
                                             />
-                                            <Text style={styles.label}>Password (required)</Text>
+                                            <Text style={styles.label}>Passwort (erforderlich)</Text>
                                             <TextInput
                                                 style={styles.modalInput}
                                                 secureTextEntry
                                                 value={editPassword}
                                                 onChangeText={setEditPassword}
-                                                placeholder="Enter your password"
+                                                placeholder="Passwort eingeben"
                                                 placeholderTextColor="#999"
                                             />
                                         </>
@@ -1458,13 +1425,17 @@ const AccountDetails = () => {
                                             style={[styles.modalButton, { backgroundColor: '#aaa' }]}
                                             onPress={closeEditModal}
                                         >
-                                            <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
+                                            <Text style={{ color: '#fff', fontWeight: '600' }}>
+                                                Abbrechen
+                                            </Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
                                             style={[styles.modalButton, { backgroundColor: '#FF6200' }]}
                                             onPress={handleSaveValue}
                                         >
-                                            <Text style={{ color: '#fff', fontWeight: '600' }}>Save</Text>
+                                            <Text style={{ color: '#fff', fontWeight: '600' }}>
+                                                Speichern
+                                            </Text>
                                         </TouchableOpacity>
                                     </View>
                                 </>
@@ -1473,23 +1444,25 @@ const AccountDetails = () => {
                             {needOtpStep && (
                                 <>
                                     <Text style={styles.sectionDesc}>
-                                        Please enter the OTP code we sent to verify your change.
+                                        Bitte den OTP-Code eingeben, den wir gesendet haben.
                                     </Text>
-                                    <Text style={styles.label}>OTP Code</Text>
+                                    <Text style={styles.label}>OTP-Code</Text>
                                     <TextInput
                                         style={styles.modalInput}
                                         value={otpValue}
                                         onChangeText={setOtpValue}
                                         keyboardType="number-pad"
+                                        placeholder="OTP eingeben"
                                         placeholderTextColor="#999"
-                                        placeholder="Enter OTP"
                                     />
                                     <View style={styles.modalButtonRow}>
                                         <TouchableOpacity
                                             style={[styles.modalButton, { backgroundColor: '#aaa' }]}
                                             onPress={closeEditModal}
                                         >
-                                            <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
+                                            <Text style={{ color: '#fff', fontWeight: '600' }}>
+                                                Abbrechen
+                                            </Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
                                             style={[
@@ -1499,7 +1472,9 @@ const AccountDetails = () => {
                                             onPress={otpValue ? handleVerifyOtp : undefined}
                                             disabled={!otpValue}
                                         >
-                                            <Text style={{ color: '#fff', fontWeight: '600' }}>Verify</Text>
+                                            <Text style={{ color: '#fff', fontWeight: '600' }}>
+                                                Verifizieren
+                                            </Text>
                                         </TouchableOpacity>
                                     </View>
                                 </>
@@ -1517,21 +1492,21 @@ const AccountDetails = () => {
                 >
                     <View style={styles.modalBackground}>
                         <View style={styles.modalCard}>
-                            <Text style={styles.modalTitle}>Enter Address OTP</Text>
+                            <Text style={styles.modalTitle}>Adresse OTP eingeben</Text>
                             <TextInput
                                 style={styles.modalInput}
                                 value={addressOtp}
                                 onChangeText={setAddressOtp}
                                 keyboardType="number-pad"
+                                placeholder="OTP-Code"
                                 placeholderTextColor="#999"
-                                placeholder="OTP Code"
                             />
                             <View style={styles.modalButtonRow}>
                                 <TouchableOpacity
                                     style={[styles.modalButton, { backgroundColor: '#aaa' }]}
                                     onPress={closeAddressModal}
                                 >
-                                    <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
+                                    <Text style={{ color: '#fff', fontWeight: '600' }}>Abbrechen</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[
@@ -1541,7 +1516,7 @@ const AccountDetails = () => {
                                     disabled={!addressOtp}
                                     onPress={handleValidateAddressOtp}
                                 >
-                                    <Text style={{ color: '#fff', fontWeight: '600' }}>Validate</Text>
+                                    <Text style={{ color: '#fff', fontWeight: '600' }}>Validieren</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -1559,20 +1534,13 @@ const AccountDetails = () => {
                         <View style={styles.modalCard}>
                             {completePhoneStep === 0 ? (
                                 <>
-                                    <Text style={styles.modalTitle}>Enter your phone number</Text>
-                                    <Text style={styles.label}>Country Code</Text>
+                                    <Text style={styles.modalTitle}>
+                                        Telefonnummer eingeben
+                                    </Text>
+                                    <Text style={styles.label}>Landesvorwahl</Text>
                                     <Picker
                                         selectedValue={tempPhoneCountryCode}
-                                        style={[
-                                            styles.picker,
-                                            {
-                                                backgroundColor,
-                                                color: textColor,
-                                            }
-                                        ]}
-                                        itemStyle={{
-                                            color: textColor,
-                                        }}
+                                        style={[styles.picker, { backgroundColor, color: textColor }]}
                                         onValueChange={(value) => setTempPhoneCountryCode(value)}
                                     >
                                         {phoneCountryCodes.map((opt) => (
@@ -1589,7 +1557,7 @@ const AccountDetails = () => {
                                         value={tempPhone}
                                         onChangeText={setTempPhone}
                                         keyboardType="number-pad"
-                                        placeholder="Phone number"
+                                        placeholder="Telefonnummer"
                                         placeholderTextColor="#999"
                                     />
                                     <View style={styles.modalButtonRow}>
@@ -1597,21 +1565,23 @@ const AccountDetails = () => {
                                             style={[styles.modalButton, { backgroundColor: '#aaa' }]}
                                             onPress={closeCompletePhoneModal}
                                         >
-                                            <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
+                                            <Text style={{ color: '#fff', fontWeight: '600' }}>Abbrechen</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
                                             style={[styles.modalButton, { backgroundColor: '#FF6200' }]}
                                             onPress={handleSendSmsOtp}
                                         >
-                                            <Text style={{ color: '#fff', fontWeight: '600' }}>Send OTP</Text>
+                                            <Text style={{ color: '#fff', fontWeight: '600' }}>
+                                                OTP senden
+                                            </Text>
                                         </TouchableOpacity>
                                     </View>
                                 </>
                             ) : (
                                 <>
-                                    <Text style={styles.modalTitle}>Enter OTP Code</Text>
+                                    <Text style={styles.modalTitle}>OTP-Code eingeben</Text>
                                     <Text style={{ marginBottom: 10 }}>
-                                        We sent an SMS to {tempPhoneCountryCode}
+                                        Wir haben eine SMS gesendet an {tempPhoneCountryCode}
                                         {tempPhone}
                                     </Text>
                                     <TextInput
@@ -1619,7 +1589,7 @@ const AccountDetails = () => {
                                         value={tempOtp}
                                         onChangeText={setTempOtp}
                                         keyboardType="number-pad"
-                                        placeholder="OTP code"
+                                        placeholder="OTP-Code"
                                         placeholderTextColor="#999"
                                     />
                                     <View style={styles.modalButtonRow}>
@@ -1627,7 +1597,7 @@ const AccountDetails = () => {
                                             style={[styles.modalButton, { backgroundColor: '#aaa' }]}
                                             onPress={closeCompletePhoneModal}
                                         >
-                                            <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
+                                            <Text style={{ color: '#fff', fontWeight: '600' }}>Abbrechen</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
                                             style={[
@@ -1637,7 +1607,9 @@ const AccountDetails = () => {
                                             disabled={!tempOtp}
                                             onPress={handleValidateSmsOtp}
                                         >
-                                            <Text style={{ color: '#fff', fontWeight: '600' }}>Verify</Text>
+                                            <Text style={{ color: '#fff', fontWeight: '600' }}>
+                                                Verifizieren
+                                            </Text>
                                         </TouchableOpacity>
                                     </View>
                                 </>
@@ -1646,6 +1618,77 @@ const AccountDetails = () => {
                     </View>
                 </Modal>
 
+                {/* PASSWORD CHANGE MODAL */}
+                <Modal
+                    visible={showPasswordModal}
+                    animationType="slide"
+                    transparent
+                    onRequestClose={() => setShowPasswordModal(false)}
+                >
+                    <View style={styles.modalBackground}>
+                        <View style={styles.modalCard}>
+                            <Text style={styles.modalTitle}>Passwort ändern</Text>
+                            {passwordError ? (
+                                <View style={styles.errorBox}>
+                                    <Text style={styles.errorText}>{passwordError}</Text>
+                                </View>
+                            ) : null}
+
+                            <Text style={styles.label}>Altes Passwort</Text>
+                            <View style={styles.passwordRow}>
+                                <TextInput
+                                    style={[styles.modalInput, { flex: 1 }]}
+                                    secureTextEntry={!showOldPass}
+                                    value={oldPassword}
+                                    onChangeText={setOldPassword}
+                                    placeholder="Altes Passwort"
+                                    placeholderTextColor="#999"
+                                />
+                                <TouchableOpacity
+                                    style={styles.eyeBtn}
+                                    onPress={() => setShowOldPass(!showOldPass)}
+                                >
+                                    <Text>{showOldPass ? 'Verstecken' : 'Zeigen'}</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <Text style={styles.label}>Neues Passwort</Text>
+                            <View style={styles.passwordRow}>
+                                <TextInput
+                                    style={[styles.modalInput, { flex: 1 }]}
+                                    secureTextEntry={!showNewPass}
+                                    value={newPassword}
+                                    onChangeText={setNewPassword}
+                                    placeholder="Neues Passwort"
+                                    placeholderTextColor="#999"
+                                />
+                                <TouchableOpacity
+                                    style={styles.eyeBtn}
+                                    onPress={() => setShowNewPass(!showNewPass)}
+                                >
+                                    <Text>{showNewPass ? 'Verstecken' : 'Zeigen'}</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={styles.modalButtonRow}>
+                                <TouchableOpacity
+                                    style={[styles.modalButton, { backgroundColor: '#aaa' }]}
+                                    onPress={() => setShowPasswordModal(false)}
+                                >
+                                    <Text style={{ color: '#fff', fontWeight: '600' }}>Abbrechen</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.modalButton, { backgroundColor: '#FF6200' }]}
+                                    onPress={handleChangePassword}
+                                >
+                                    <Text style={{ color: '#fff', fontWeight: '600' }}>Speichern</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
+
+                {/* Tam profil doldurma modalı */}
                 <CompleteProfileModal
                     isVisible={isModalVisible}
                     onClose={() => setModalVisible(false)}
@@ -1667,6 +1710,221 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#fff',
     },
+    // Üstteki tab menüsü
+    topTabsContainer: {
+        flexDirection: 'row',
+        borderBottomWidth: 1,
+        borderBottomColor: '#ddd',
+    },
+    topTab: {
+        flex: 1,
+        paddingVertical: 12,
+        alignItems: 'center',
+    },
+    topTabActive: {
+        borderBottomWidth: 3,
+        borderBottomColor: '#FF6200',
+    },
+    topTabText: {
+        fontSize: 14,
+        color: '#666',
+    },
+    topTabTextActive: {
+        color: '#FF6200',
+        fontWeight: '600',
+    },
+    // Sekme içeriği
+    tabContent: {
+        flex: 1,
+        padding: 15,
+    },
+    // Kart
+    card: {
+        backgroundColor: '#fff',
+        borderRadius: 8,
+        padding: 15,
+        marginBottom: 15,
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.23,
+        shadowRadius: 2.62,
+
+        elevation: 4,
+    },
+    cardTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        marginBottom: 10,
+    },
+    cardHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    addressVerify: {
+        color: '#FF6200',
+        fontWeight: '600',
+    },
+    // Bilgi satırı
+    infoRow: {
+        marginBottom: 8,
+    },
+    infoLabel: {
+        fontSize: 14,
+        color: '#888',
+        marginBottom: 2,
+    },
+    infoValueContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    infoValue: {
+        fontSize: 14,
+        color: '#333',
+    },
+    infoEditButton: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        backgroundColor: '#eee',
+        borderRadius: 4,
+        marginLeft: 10,
+    },
+    infoEditButtonText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#333',
+    },
+    // Address
+    subInfo: {
+        color: '#555',
+        marginBottom: 3,
+    },
+    verifyAddressButton: {
+        padding: 10,
+        backgroundColor: '#FF6200',
+        borderRadius: 5,
+        alignItems: 'center',
+    },
+    verifyAddressButtonText: {
+        color: '#fff',
+        fontWeight: '600',
+    },
+    editAddressBtn: {
+        marginTop: 10,
+        padding: 8,
+        alignSelf: 'flex-start',
+        backgroundColor: '#eee',
+        borderRadius: 4,
+    },
+    editAddressBtnText: {
+        fontWeight: '600',
+        fontSize: 12,
+        color: '#333',
+    },
+    editAddressContainer: {
+        marginTop: 10,
+        backgroundColor: '#f9f9f9',
+        padding: 10,
+        borderRadius: 6,
+    },
+    inputRow: {
+        flexDirection: 'row',
+        marginTop: 10,
+    },
+    input: {
+        borderWidth: 1,
+        borderColor: '#ccc',
+        borderRadius: 5,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        marginTop: 5,
+        color: '#000',
+    },
+    saveAddressBtn: {
+        marginTop: 12,
+        paddingVertical: 10,
+        borderRadius: 6,
+        backgroundColor: '#FF6200',
+        alignItems: 'center',
+    },
+    saveAddressBtnText: {
+        color: '#fff',
+        fontWeight: '600',
+    },
+    // Hata kutusu
+    errorBox: {
+        backgroundColor: '#fdd',
+        padding: 10,
+        marginVertical: 5,
+        borderRadius: 5,
+        borderWidth: 1,
+        borderColor: '#faa',
+    },
+    errorText: {
+        color: '#900',
+        fontWeight: '600',
+    },
+    // Bildirim toggles
+    toggleRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginVertical: 5,
+    },
+    toggleLabel: {
+        fontSize: 14,
+        color: '#333',
+    },
+    // Konto löschen
+    deleteAccountTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        marginBottom: 5,
+        color: '#c00',
+    },
+    deleteAccountDesc: {
+        color: '#555',
+        marginBottom: 10,
+    },
+    deleteAccountBtn: {
+        backgroundColor: '#FF6200',
+        paddingVertical: 10,
+        borderRadius: 6,
+        alignItems: 'center',
+    },
+    deleteAccountBtnText: {
+        color: '#fff',
+        fontWeight: '600',
+    },
+    // Sicherheit => Passwort
+    changePasswordBtn: {
+        paddingVertical: 10,
+        backgroundColor: '#FF6200',
+        borderRadius: 6,
+        alignItems: 'center',
+    },
+    changePasswordBtnText: {
+        color: '#fff',
+        fontWeight: '600',
+    },
+    // Präferenzen
+    managePaymentBtn: {
+        marginTop: 10,
+        backgroundColor: '#eee',
+        padding: 8,
+        borderRadius: 4,
+        alignSelf: 'flex-start',
+    },
+    managePaymentBtnText: {
+        fontWeight: '600',
+        fontSize: 12,
+        color: '#333',
+    },
+    // Profil Banner
     profileBanner: {
         backgroundColor: '#fff3e0',
         padding: 15,
@@ -1691,59 +1949,7 @@ const styles = StyleSheet.create({
         borderRadius: 5,
         alignItems: 'center',
     },
-
-    tabBar: {
-        flexDirection: 'row',
-        borderBottomWidth: 1,
-        borderBottomColor: '#ddd',
-    },
-    tabItem: {
-        flex: 1,
-        paddingVertical: 12,
-        alignItems: 'center',
-    },
-    tabItemActive: {
-        borderBottomWidth: 3,
-        borderBottomColor: '#FF6200',
-    },
-    tabText: {
-        fontSize: 14,
-        color: '#666',
-    },
-    tabTextActive: {
-        color: '#FF6200',
-        fontWeight: '600',
-    },
-
-    sectionTitle: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        marginTop: 10,
-    },
-    sectionDesc: {
-        fontSize: 13,
-        color: '#666',
-        marginBottom: 10,
-    },
-    label: {
-        marginTop: 10,
-        fontWeight: '600',
-        marginBottom: 5,
-    },
-
-    input: {
-        borderWidth: 1,
-        borderColor: '#ccc',
-        borderRadius: 5,
-        paddingHorizontal: 10,
-        paddingVertical: 8,
-        marginVertical: 5,
-    },
-    inputRow: {
-        flexDirection: 'row',
-        marginTop: 10,
-    },
-
+    // Company
     genderContainer: {
         flexDirection: 'row',
         marginVertical: 5,
@@ -1761,51 +1967,7 @@ const styles = StyleSheet.create({
         borderColor: '#FF6200',
         backgroundColor: '#ffe6d9',
     },
-
-    updateButton: {
-        marginTop: 15,
-        paddingVertical: 12,
-        borderRadius: 6,
-        alignItems: 'center',
-    },
-
-    editBtn: {
-        paddingHorizontal: 8,
-        paddingVertical: 6,
-        alignSelf: 'flex-start',
-        borderRadius: 4,
-        marginBottom: 10,
-        marginTop: 5,
-        backgroundColor: '#e0e0e0',
-    },
-    editBtnText: {
-        color: '#333',
-        fontWeight: '600',
-    },
-
-    billingHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    verifyInfoText: {
-        fontSize: 13,
-        color: '#666',
-        marginVertical: 5,
-    },
-    verifyButton: {
-        paddingVertical: 10,
-        paddingHorizontal: 15,
-        borderRadius: 5,
-        alignSelf: 'flex-start',
-        marginBottom: 10,
-        marginTop: 5,
-    },
-    verifyButtonText: {
-        color: '#fff',
-        fontWeight: '600',
-    },
-
+    // Modals
     modalBackground: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',
@@ -1836,6 +1998,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         paddingVertical: 8,
         marginVertical: 5,
+        color: '#000',
     },
     modalButtonRow: {
         flexDirection: 'row',
@@ -1848,14 +2011,18 @@ const styles = StyleSheet.create({
         borderRadius: 6,
         alignItems: 'center',
     },
-
     picker: {
         borderWidth: 1,
         borderColor: '#ccc',
         borderRadius: 5,
         marginVertical: 5,
     },
-
+    sectionDesc: {
+        fontSize: 13,
+        color: '#666',
+        marginBottom: 10,
+    },
+    // Password modal
     passwordRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -1868,17 +2035,8 @@ const styles = StyleSheet.create({
         backgroundColor: '#f0f0f0',
         borderRadius: 5,
     },
-
-    errorBox: {
-        backgroundColor: '#fdd',
-        padding: 10,
-        marginVertical: 5,
-        borderRadius: 5,
-        borderWidth: 1,
-        borderColor: '#faa',
-    },
-    errorText: {
-        color: '#900',
+    label: {
         fontWeight: '600',
+        marginTop: 10,
     },
 });

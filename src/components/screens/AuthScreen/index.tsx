@@ -17,6 +17,39 @@ import { useNavigation } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
+// Parola kurallarını kontrol eden örnek fonksiyon
+const checkPasswordRequirements = (password: string) => {
+    const lengthRequirement = password.length >= 8;
+    const hasNumber = /\d/.test(password);
+    const hasSpecial = /[^A-Za-z0-9]/.test(password);
+    const hasUpper = /[A-Z]/.test(password);
+    const hasLower = /[a-z]/.test(password);
+
+    // Kaç kuralın sağlandığını hesaplayalım:
+    const requirementsMetCount = [
+        lengthRequirement,
+        hasNumber && hasSpecial,
+        hasUpper,
+        hasLower,
+    ].filter(Boolean).length;
+
+    let level = 'Sehr Schwach';
+    if (requirementsMetCount === 1) level = 'Schwach';
+    if (requirementsMetCount === 2) level = 'Mittel';
+    if (requirementsMetCount === 3) level = 'Stark';
+    if (requirementsMetCount === 4) level = 'Sehr Stark';
+
+    return {
+        lengthRequirement,
+        hasNumber,
+        hasSpecial,
+        hasUpper,
+        hasLower,
+        requirementsMetCount,
+        level,
+    };
+};
+
 const AuthScreen = () => {
     const dispatch = useDispatch<any>();
     const navigation = useNavigation();
@@ -35,6 +68,7 @@ const AuthScreen = () => {
     const [isAcceptedTerms, setIsAcceptedTerms] = useState(false);
     const [signUpEmailError, setSignUpEmailError] = useState('');
 
+    // Parola görünürlüğü
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
     // Email Validation Function
@@ -56,31 +90,24 @@ const AuthScreen = () => {
         setEmailError('');
 
         if (!email || !password) {
-            setEmailError('Email and password are required.');
+            setEmailError('E-Mail und Passwort sind erforderlich.');
             return;
         }
-
         if (!validateEmail(email)) {
-            setEmailError('Please enter a valid email address.');
+            setEmailError('Bitte geben Sie eine gültige E-Mail-Adresse ein.');
             return;
         }
 
         try {
             const resultAction = await dispatch(login({ emailId: email, password }));
-            console.log('Login Response:', resultAction);
-
             if (resultAction.type === 'auth/login/fulfilled') {
                 navigation.navigate('Tabbar' as never);
             } else {
                 const errorMessage = getErrorMessage(resultAction.payload);
-                Alert.alert('Login Failed', errorMessage);
+                Alert.alert('Login Fehlgeschlagen', errorMessage);
             }
         } catch (err: any) {
-            console.error('Login Error:', err);
-            Alert.alert(
-                'Login Error',
-                getErrorMessage(err)
-            );
+            Alert.alert('Login Error', getErrorMessage(err));
         }
     };
 
@@ -89,17 +116,31 @@ const AuthScreen = () => {
         setSignUpEmailError('');
 
         if (!signUpEmail || !signUpPassword) {
-            setSignUpEmailError('Email and password are required.');
+            setSignUpEmailError('E-Mail und Passwort sind erforderlich.');
             return;
         }
-
         if (!validateEmail(signUpEmail)) {
-            setSignUpEmailError('Please enter a valid email address.');
+            setSignUpEmailError('Bitte geben Sie eine gültige E-Mail-Adresse ein.');
+            return;
+        }
+        // Şifre gereksinimleri karşılanıyor mu?
+        const {
+            lengthRequirement,
+            hasNumber,
+            hasSpecial,
+            hasUpper,
+            hasLower,
+        } = checkPasswordRequirements(signUpPassword);
+
+        const allMet =
+            lengthRequirement && hasNumber && hasSpecial && hasUpper && hasLower;
+        if (!allMet) {
+            setSignUpEmailError('Bitte beachten Sie die Passwortanforderungen unten.');
             return;
         }
 
         if (!isAcceptedTerms) {
-            setSignUpEmailError('Please accept the terms and conditions.');
+            setSignUpEmailError('Bitte akzeptieren Sie die AGB.');
             return;
         }
 
@@ -111,44 +152,68 @@ const AuthScreen = () => {
                     isAcceptedTermAndConditions: isAcceptedTerms,
                 })
             );
-
             if (register.fulfilled.match(resultAction)) {
                 navigation.navigate('OtpMail' as never);
             } else {
                 const errorMessage = getErrorMessage(resultAction.payload);
-                //  Alert.alert('Registration Failed', errorMessage);
+                // Alert.alert('Registration Failed', errorMessage);
             }
         } catch (err: any) {
-            console.error('Register Error:', err);
-            Alert.alert(
-                'Registration Error',
-                getErrorMessage(err)
-            );
+            Alert.alert('Registrierungsfehler', getErrorMessage(err));
         }
     };
 
+    // Şifre kurallarını her karakter girilişinde kontrol edelim
+    const passwordCheck = checkPasswordRequirements(signUpPassword);
+
+    // "Registrieren" butonu disable mı?
+    const canRegister =
+        !loading &&
+        passwordCheck.lengthRequirement &&
+        passwordCheck.hasNumber &&
+        passwordCheck.hasSpecial &&
+        passwordCheck.hasUpper &&
+        passwordCheck.hasLower &&
+        isAcceptedTerms;
+
     return (
         <View style={styles.container}>
-            {/* Tab Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => setActiveTab(0)} style={styles.tabContainer}>
-                    <Text style={[styles.tab, activeTab === 0 && styles.activeTab]}>Login</Text>
+            {/* Markamız */}
+            <Text style={styles.brandName}>Orsetto</Text>
+
+            {/* Tablar (Anmelden / Registrieren) */}
+            <View style={styles.tabContainer}>
+                <TouchableOpacity
+                    style={styles.tabButton}
+                    onPress={() => setActiveTab(0)}
+                >
+                    <Text style={[styles.tabText, activeTab === 0 && styles.activeTabText]}>
+                        Anmelden
+                    </Text>
                     {activeTab === 0 && <View style={styles.activeLine} />}
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setActiveTab(1)} style={styles.tabContainer}>
-                    <Text style={[styles.tab, activeTab === 1 && styles.activeTab]}>Sign Up</Text>
+
+                <TouchableOpacity
+                    style={styles.tabButton}
+                    onPress={() => setActiveTab(1)}
+                >
+                    <Text style={[styles.tabText, activeTab === 1 && styles.activeTabText]}>
+                        Registrieren
+                    </Text>
                     {activeTab === 1 && <View style={styles.activeLine} />}
                 </TouchableOpacity>
             </View>
 
-            {/* Content */}
             {activeTab === 0 ? (
-                // Login Screen
-                <View style={styles.page}>
+                // ------------------ LOGIN SCREEN (Anmelden) ----------------------
+                <View style={styles.loginCard}>
+                    <Text style={styles.loginTitle}>Anmelden</Text>
+
                     <View style={styles.inputContainer}>
+                        <Text style={styles.inputLabel}>E-Mail</Text>
                         <TextInput
-                            placeholder="Email address"
-                            placeholderTextColor="#ccc"
+                            placeholder="z.B. user@example.com"
+                            placeholderTextColor="#999"
                             keyboardType="email-address"
                             autoCapitalize="none"
                             style={styles.input}
@@ -160,49 +225,70 @@ const AuthScreen = () => {
                         />
                         {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
                     </View>
-                    <View style={styles.passwordContainer}>
-                        <TextInput
-                            placeholder="Password"
-                            placeholderTextColor="#ccc"
-                            secureTextEntry={!isPasswordVisible}
-                            style={[styles.input, styles.passwordInput]}
-                            value={password}
-                            onChangeText={(value) => setPassword(value)}
-                        />
-                        <TouchableOpacity
-                            onPress={() => setIsPasswordVisible(!isPasswordVisible)}
-                            style={styles.eyeButton}
-                        >
-                            <Image
-                                source={
-                                    isPasswordVisible
-                                        ? require('../../images/view.png')
-                                        : require('../../images/hide.png')
-                                }
-                                style={styles.eyeIcon}
+
+                    <View style={styles.inputContainer}>
+                        <Text style={styles.inputLabel}>Passwort</Text>
+                        <View style={styles.passwordContainer}>
+                            <TextInput
+                                placeholder="********"
+                                placeholderTextColor="#999"
+                                secureTextEntry={!isPasswordVisible}
+                                style={[styles.input, styles.passwordInput]}
+                                value={password}
+                                onChangeText={(value) => setPassword(value)}
                             />
-                        </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+                                style={styles.eyeButton}
+                            >
+                                <Image
+                                    source={
+                                        isPasswordVisible
+                                            ? require('../../images/view.png')
+                                            : require('../../images/hide.png')
+                                    }
+                                    style={styles.eyeIcon}
+                                />
+                            </TouchableOpacity>
+                        </View>
                     </View>
-                    <TouchableOpacity onPress={()=>  navigation.navigate('ForgotPassword')}>
-                        <Text style={styles.errorText}>I forgot my password</Text>
-                    </TouchableOpacity>
-                    {loading && <ActivityIndicator size="large" color="#FF6200" />}
-                    {/*  {error && <Text style={styles.errorText}>{getErrorMessage(error)}</Text>}*/}
+
+                    {loading && <ActivityIndicator size="large" color="#FF6200" style={{ marginVertical: 10 }} />}
+
                     <TouchableOpacity
-                        style={[styles.button, loading && styles.disabledButton]}
+                        style={[styles.loginButton, loading && styles.disabledButton]}
                         onPress={handleLogin}
                         disabled={loading}
                     >
-                        <Text style={styles.buttonText}>Sign in</Text>
+                        <Text style={styles.loginButtonText}>Anmelden</Text>
                     </TouchableOpacity>
+
+                    <View style={styles.bottomLinksContainer}>
+                        <Text style={styles.bottomText}>
+                            Sie haben noch kein Konto?{' '}
+                            <Text
+                                style={styles.registerLink}
+                                onPress={() => setActiveTab(1)}
+                            >
+                                Registrieren
+                            </Text>
+                        </Text>
+
+                        <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
+                            <Text style={styles.forgotPasswordLink}>Passwort vergessen?</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             ) : (
-                // Sign Up Screen
-                <View style={styles.page}>
+                // ------------------ SIGN UP SCREEN (Konto erstellen) ----------------------
+                <View style={styles.registerCard}>
+                    <Text style={styles.loginTitle}>Konto erstellen</Text>
+
                     <View style={styles.inputContainer}>
+                        <Text style={styles.inputLabel}>E-Mail</Text>
                         <TextInput
-                            placeholder="Email address"
-                            placeholderTextColor="#ccc"
+                            placeholder="z.B. user@example.com"
+                            placeholderTextColor="#999"
                             keyboardType="email-address"
                             autoCapitalize="none"
                             style={styles.input}
@@ -212,34 +298,109 @@ const AuthScreen = () => {
                                 setSignUpEmailError('');
                             }}
                         />
-                        {signUpEmailError ? (
-                            <Text style={styles.errorText}>{signUpEmailError}</Text>
-                        ) : null}
                     </View>
-                    <View style={styles.passwordContainer}>
-                        <TextInput
-                            placeholder="Password"
-                            placeholderTextColor="#ccc"
-                            secureTextEntry={!isPasswordVisible}
-                            style={[styles.input, styles.passwordInput]}
-                            value={signUpPassword}
-                            onChangeText={(value) => setSignUpPassword(value)}
-                        />
-                        <TouchableOpacity
-                            onPress={() => setIsPasswordVisible(!isPasswordVisible)}
-                            style={styles.eyeButton}
-                        >
-                            <Image
-                                source={
-                                    isPasswordVisible
-                                        ? require('../../images/view.png')
-                                        : require('../../images/hide.png')
-                                }
-                                style={styles.eyeIcon}
+
+                    <View style={styles.inputContainer}>
+                        <Text style={styles.inputLabel}>Passwort</Text>
+                        <View style={styles.passwordContainer}>
+                            <TextInput
+                                placeholder="********"
+                                placeholderTextColor="#999"
+                                secureTextEntry={!isPasswordVisible}
+                                style={[styles.input, styles.passwordInput]}
+                                value={signUpPassword}
+                                onChangeText={(value) => {
+                                    setSignUpPassword(value);
+                                    setSignUpEmailError('');
+                                }}
                             />
-                        </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+                                style={styles.eyeButton}
+                            >
+                                <Image
+                                    source={
+                                        isPasswordVisible
+                                            ? require('../../images/view.png')
+                                            : require('../../images/hide.png')
+                                    }
+                                    style={styles.eyeIcon}
+                                />
+                            </TouchableOpacity>
+                        </View>
                     </View>
-                    <View style={styles.termsContainer}>
+
+                    {/* Parola Gücü ve Kurallar Kartı */}
+                    {!!signUpPassword && (
+                        <View style={styles.passwordRulesCard}>
+                            <Text style={styles.levelText}>
+                                Niveau: {passwordCheck.level}
+                            </Text>
+                            <View style={styles.strengthBarContainer}>
+                                {Array.from({ length: 4 }).map((_, index) => (
+                                    <View
+                                        key={index}
+                                        style={[
+                                            styles.strengthBar,
+                                            index < passwordCheck.requirementsMetCount
+                                                ? { backgroundColor: '#FF6200' }
+                                                : { backgroundColor: '#ddd' }
+                                        ]}
+                                    />
+                                ))}
+                            </View>
+
+                            <View style={{ marginTop: 10 }}>
+                                <Text
+                                    style={[
+                                        styles.ruleText,
+                                        passwordCheck.lengthRequirement
+                                            ? styles.ruleTextOK
+                                            : styles.ruleTextNotOK
+                                    ]}
+                                >
+                                    ✓ Mindestens 8 Zeichen
+                                </Text>
+                                <Text
+                                    style={[
+                                        styles.ruleText,
+                                        (passwordCheck.hasNumber && passwordCheck.hasSpecial)
+                                            ? styles.ruleTextOK
+                                            : styles.ruleTextNotOK
+                                    ]}
+                                >
+                                    ✓ Mindestens eine Zahl und ein Sonderzeichen
+                                </Text>
+                                <Text
+                                    style={[
+                                        styles.ruleText,
+                                        passwordCheck.hasUpper
+                                            ? styles.ruleTextOK
+                                            : styles.ruleTextNotOK
+                                    ]}
+                                >
+                                    ✓ Mindestens ein Großbuchstabe
+                                </Text>
+                                <Text
+                                    style={[
+                                        styles.ruleText,
+                                        passwordCheck.hasLower
+                                            ? styles.ruleTextOK
+                                            : styles.ruleTextNotOK
+                                    ]}
+                                >
+                                    ✓ Mindestens ein Kleinbuchstabe
+                                </Text>
+                            </View>
+                        </View>
+                    )}
+
+                    {signUpEmailError ? (
+                        <Text style={styles.errorText}>{signUpEmailError}</Text>
+                    ) : null}
+
+                    {/* AGB checkbox */}
+                    <View style={styles.agbContainer}>
                         <TouchableOpacity
                             onPress={() => setIsAcceptedTerms(!isAcceptedTerms)}
                             style={styles.checkbox}
@@ -251,17 +412,39 @@ const AuthScreen = () => {
                                 ]}
                             />
                         </TouchableOpacity>
-                        <Text style={styles.termsText}>I accept the terms and conditions</Text>
+                        <Text style={styles.agbText}>
+                            Ich erkläre, die{' '}
+                            <Text style={styles.linkText}>AGB</Text> akzeptiert und die{' '}
+                            <Text style={styles.linkText}>Datenschutzerklärung</Text> von Orsetto
+                            zur Kenntnis genommen zu haben.
+                        </Text>
                     </View>
-                    {loading && <ActivityIndicator size="large" color="#FF6200" />}
-                    {error && <Text style={styles.errorText}>{getErrorMessage(error)}</Text>}
+
+                    {signUpEmailError ? (
+                        <Text style={styles.errorText}>{signUpEmailError}</Text>
+                    ) : null}
+
+                    {loading && <ActivityIndicator size="large" color="#FF6200" style={{ marginVertical: 10 }} />}
+
                     <TouchableOpacity
-                        style={[styles.button, loading && styles.disabledButton]}
+                        style={[styles.registerButton, !canRegister && styles.disabledButton]}
                         onPress={handleRegister}
-                        disabled={loading}
+                        disabled={!canRegister}
                     >
-                        <Text style={styles.buttonText}>Sign up</Text>
+                        <Text style={styles.registerButtonText}>Registrieren</Text>
                     </TouchableOpacity>
+
+                    <View style={{ marginTop: 20, alignItems: 'center' }}>
+                        <Text style={styles.bottomText}>
+                            Sie haben bereits ein Konto?{' '}
+                            <Text
+                                style={styles.registerLink}
+                                onPress={() => setActiveTab(0)}
+                            >
+                                Anmelden
+                            </Text>
+                        </Text>
+                    </View>
                 </View>
             )}
         </View>
@@ -269,45 +452,97 @@ const AuthScreen = () => {
 };
 
 const styles = StyleSheet.create({
+    // Ana ekran
     container: {
         flex: 1,
         backgroundColor: '#fff',
-        paddingTop: 50,
+        alignItems: 'center',
+        paddingTop: 40,
     },
-    header: {
+    brandName: {
+        fontSize: 28,
+        fontWeight: 'bold',
+        color: '#FF6200',
+        marginBottom: 20,
+        marginTop: 20
+    },
+
+    // Üstteki tab container
+    tabContainer: {
         flexDirection: 'row',
         justifyContent: 'space-around',
+        width: '90%',
         borderBottomWidth: 1,
         borderBottomColor: '#ddd',
-        marginBottom: 20,
+        marginBottom: 25,
     },
-    tabContainer: {
+    tabButton: {
         flex: 1,
         alignItems: 'center',
-    },
-    tab: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#888',
         paddingVertical: 10,
-        textAlign: 'center',
+        position: 'relative',
     },
-    activeTab: {
+    tabText: {
+        fontSize: 16,
+        color: '#888',
+        fontWeight: '600',
+    },
+    activeTabText: {
         color: '#FF6200',
     },
     activeLine: {
-        height: 4,
+        position: 'absolute',
+        bottom: -2,
+        left: 0,
+        right: 0,
+        height: 3,
         backgroundColor: '#FF6200',
-        width: '100%',
-        borderRadius: 2,
-        marginTop: 5,
-        alignSelf: 'center',
     },
-    page: {
+
+    // Login/Register kartları
+    loginCard: {
+        width: '90%',
+        backgroundColor: '#f9f9f9',
+        borderRadius: 10,
         padding: 20,
+        alignItems: 'center',
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOpacity: 0.1,
+        shadowRadius: 5,
+        shadowOffset: { width: 0, height: 2 },
+        marginBottom: 20,
     },
+    registerCard: {
+        width: '90%',
+        backgroundColor: '#f9f9f9',
+        borderRadius: 10,
+        padding: 20,
+        alignItems: 'center',
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOpacity: 0.1,
+        shadowRadius: 5,
+        shadowOffset: { width: 0, height: 2 },
+        marginBottom: 20,
+    },
+    loginTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        marginBottom: 20,
+        color: '#333',
+        alignSelf: 'flex-start',
+    },
+
+    // Inputlar
     inputContainer: {
-        marginBottom: 10,
+        width: '100%',
+        marginBottom: 15,
+    },
+    inputLabel: {
+        fontSize: 14,
+        color: '#333',
+        marginBottom: 5,
     },
     input: {
         borderWidth: 1,
@@ -316,17 +551,17 @@ const styles = StyleSheet.create({
         padding: 12,
         fontSize: 16,
         color: '#000',
+        backgroundColor: '#fff',
     },
     errorText: {
         color: 'red',
         fontSize: 12,
         marginTop: 5,
-        marginLeft: 'auto',
-        fontWeight: 'bold'
+        fontWeight: 'bold',
     },
     passwordContainer: {
         position: 'relative',
-        marginBottom: 10,
+        width: '100%',
     },
     passwordInput: {
         paddingRight: 50,
@@ -342,26 +577,105 @@ const styles = StyleSheet.create({
         height: 24,
         tintColor: '#888',
     },
-    button: {
+
+    // Login / Register butonları
+    loginButton: {
+        width: '100%',
         backgroundColor: '#FF6200',
         padding: 15,
         borderRadius: 8,
         alignItems: 'center',
-        marginTop: 20,
+        marginTop: 10,
+    },
+    registerButton: {
+        width: '100%',
+        backgroundColor: '#FF6200',
+        padding: 15,
+        borderRadius: 8,
+        alignItems: 'center',
+        marginTop: 10,
     },
     disabledButton: {
-        opacity: 0.7,
+        opacity: 0.4,
     },
-    buttonText: {
+    loginButtonText: {
         color: '#fff',
         fontSize: 16,
         fontWeight: 'bold',
     },
-    termsContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
+    registerButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+
+    // Alt linkler (Login kartında)
+    bottomLinksContainer: {
+        width: '100%',
         marginTop: 20,
+        alignItems: 'center',
+    },
+    bottomText: {
+        fontSize: 14,
+        color: '#333',
+        marginBottom: 8,
+    },
+    registerLink: {
+        fontWeight: 'bold',
+        color: '#FF6200',
+    },
+    forgotPasswordLink: {
+        color: '#FF6200',
+        fontSize: 14,
+        marginTop: 4,
+        textDecorationLine: 'underline',
+    },
+
+    // Şifre Gücü
+    passwordRulesCard: {
+        width: '100%',
+        backgroundColor: '#fff',
+        borderRadius: 8,
+        padding: 10,
+        marginTop: -5,
         marginBottom: 10,
+        borderWidth: 1,
+        borderColor: '#eee',
+    },
+    levelText: {
+        fontWeight: '600',
+        fontSize: 14,
+        color: '#333',
+        marginBottom: 5,
+    },
+    strengthBarContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 10,
+    },
+    strengthBar: {
+        flex: 1,
+        height: 4,
+        borderRadius: 2,
+        marginRight: 4,
+    },
+    ruleText: {
+        fontSize: 14,
+        marginBottom: 4,
+    },
+    ruleTextOK: {
+        color: '#009900',
+    },
+    ruleTextNotOK: {
+        color: '#cc0000',
+    },
+
+    // AGB Checkbox
+    agbContainer: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        marginTop: 10,
+        marginBottom: 15,
     },
     checkbox: {
         width: 20,
@@ -372,6 +686,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 10,
+        marginTop: 2,
     },
     checkboxInner: {
         width: 12,
@@ -382,9 +697,15 @@ const styles = StyleSheet.create({
     checkboxChecked: {
         backgroundColor: '#FF6200',
     },
-    termsText: {
-        fontSize: 14,
+    agbText: {
+        flex: 1,
+        fontSize: 13,
         color: '#444',
+        lineHeight: 18,
+    },
+    linkText: {
+        color: '#FF6200',
+        textDecorationLine: 'underline',
     },
 });
 
