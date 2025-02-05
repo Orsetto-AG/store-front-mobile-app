@@ -13,7 +13,6 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../redux/store';
 import { logout } from '../../redux/slices/authSlice';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import CompleteProfileModal from '../Profile/CompleteProfile';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -45,8 +44,6 @@ const Profile = () => {
     const dispatch = useDispatch();
     const navigation = useNavigation();
     const { user } = useSelector((state: RootState) => state.auth);
-
-    const [isModalVisible, setModalVisible] = useState(false);
     const [profileData, setProfileData] = useState<any>(null);
 
     // Avatar modal state
@@ -274,7 +271,7 @@ const Profile = () => {
                 <View style={styles.premiumBanner}>
                     <Text style={styles.premiumText}>ORSETTO</Text>
                     <TouchableOpacity
-                        onPress={() => setModalVisible(true)}
+                        onPress={() => navigation.navigate('CompleteProfile')}
                         style={styles.premiumButton}
                     >
                         <Text style={styles.premiumButtonText}>Premium User</Text>
@@ -294,17 +291,6 @@ const Profile = () => {
                     <Text style={styles.logoutButtonText}>Log out</Text>
                 </TouchableOpacity>
             </ScrollView>
-
-            {/* Profil tamamlama modalı */}
-            <CompleteProfileModal
-                isVisible={isModalVisible}
-                onClose={() => setModalVisible(false)}
-                onProfileUpdate={() => {
-                    fetchProfileData();
-                    setModalVisible(false);
-                }}
-                profileData={profileData}
-            />
 
             {/* Avatar seçimi için modal */}
             <Modal

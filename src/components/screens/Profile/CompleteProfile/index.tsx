@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -9,142 +9,158 @@ import {
     Alert,
     KeyboardAvoidingView,
     Platform,
-    useColorScheme,
     Switch,
-    PanResponder,
-    Animated
+    SafeAreaView
 } from 'react-native';
-import Modal from 'react-native-modal';
 import { Picker } from '@react-native-picker/picker';
 import DatePicker from 'react-native-date-picker';
-import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 
-interface CompleteProfileModalProps {
-    isVisible: boolean;
-    onClose: () => void;
-    onProfileUpdate: () => void;
-    profileData: any;
-}
+const CompleteProfileModal = ({ navigation }) => {
+    // Adım takibi: 0 => Form (Kontodaten), 1 => SMS-Verifizierung
+    const [currentStep, setCurrentStep] = useState(0);
 
-const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
-                                                                       isVisible,
-                                                                       onClose,
-                                                                       onProfileUpdate,
-                                                                       profileData,
-                                                                   }) => {
-    const colorScheme = useColorScheme();
-    const isDarkMode = colorScheme === 'dark';
-
-    const colors = {
-        background: isDarkMode ? '#1a1a1a' : '#ffffff',
-        text: isDarkMode ? '#ffffff' : '#333333',
-        border: isDarkMode ? '#404040' : '#dddddd',
-        placeholder: isDarkMode ? '#808080' : '#999999',
-        dragIndicator: isDarkMode ? '#404040' : '#dddddd',
-    };
-
-    // Account tipinin seçili olup olmadığı bilgisini tutuyoruz
+    // State: Privat/Gewerbe
     const [isCompany, setIsCompany] = useState(false);
 
-    // Kişisel bilgi state
-    const [personalData, setPersonalData] = useState({
-        gender: 'male',
-        languageCode: 'de',
-        firstName: '',
-        lastName: '',
-        birthday: new Date(),
-        street: '',
-        streetNumber: '',
-        zipCode: '',
-        city: '',
-        country: 'Switzerland',
-        otherAddressInfo: '',
-    });
+    // Kişisel veri state
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
+    const [birthday, setBirthday] = useState<Date | null>(null);
+    const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+    const [gender, setGender] = useState<'male' | 'female' | 'other'>('male');
+    const [languageCode, setLanguageCode] = useState<'de' | 'en' | 'fr' | 'it'>('de');
 
-    // Şirket bilgileri state
-    const [companyData, setCompanyData] = useState({
-        companyName: '',
-        isTradeRegistered: false,
-        tradeRegisteredNumber: '',
-        isRegisterOwner: false, // “Zeichnungsberechtigung”
-    });
-    // --- Privatperson Seçildiğinde ---
-    const handleSelectPrivatePerson = () => {
-        setIsCompany(false);
-        // Firma bilgilerini sıfırlayın ki form alanlarında da gözüksün
-        setCompanyData({
-            companyName: '',
-            isTradeRegistered: false,
-            tradeRegisteredNumber: '',
-            isRegisterOwner: false,
-        });
-    };
-// --- Gewerbe Seçildiğinde ---
-    const handleSelectCompany = () => {
-        setIsCompany(true);
-        // İsterseniz burada companyData’ya varsayılanları yeniden atayabilirsiniz
-        // (profileData varsa ordan çekebilirsiniz).
-    };
-    const [isDatePickerOpen, setDatePickerOpen] = useState(false);
+    // Adres
+    const [country, setCountry] = useState('Switzerland');
+    const [zipCode, setZipCode] = useState('');
+    const [city, setCity] = useState('');
+    const [street, setStreet] = useState('');
+    const [streetNumber, setStreetNumber] = useState('');
+    const [addressDetail, setAddressDetail] = useState(''); // z.B. Etage, Zimmernummer
+    const [differentBilling, setDifferentBilling] = useState(false);
 
-    // Modal açıldığında veya profileData değiştiğinde input alanlarına verileri doldur
-    useEffect(() => {
-        if (profileData) {
-            // Firma verisi var mı?
-            const hasCompanyData = profileData;
-            setIsCompany(!!hasCompanyData);
+    // Billing Adres
+    const [billingZipCode, setBillingZipCode] = useState('');
+    const [billingCity, setBillingCity] = useState('');
+    const [billingStreet, setBillingStreet] = useState('');
+    const [billingStreetNumber, setBillingStreetNumber] = useState('');
+    const [billingDetail, setBillingDetail] = useState('');
 
-            // Kişisel verileri doldur
-            setPersonalData({
-                gender: profileData?.gender || 'male',
-                languageCode: profileData?.languageCode || 'de',
-                firstName: profileData?.firstName || '',
-                lastName: profileData?.lastName || '',
-                birthday: profileData?.birthday
-                    ? new Date(profileData.birthday)
-                    : new Date(),
-                street: profileData?.street || '',
-                streetNumber: profileData?.streetNumber || '',
-                zipCode: profileData?.zipCode || '',
-                city: profileData?.city || '',
-                country: profileData?.country || 'Switzerland',
-                otherAddressInfo: profileData?.otherAddressInfo || '',
-            });
+    // Şirket (Gewerbe) veri state
+    const [companyName, setCompanyName] = useState('');
+    const [isTradeRegistered, setIsTradeRegistered] = useState(false);
+    const [tradeRegisteredNumber, setTradeRegisteredNumber] = useState('');
+    const [isRegisterOwner, setIsRegisterOwner] = useState(false);
 
-            // Firma verisi varsa doldur, yoksa sıfırla
-            if (hasCompanyData) {
-                setCompanyData({
-                    companyName: profileData.companyName || '',
-                    isTradeRegistered: profileData.isTradeRegistered || false,
-                    tradeRegisteredNumber: profileData.tradeRegisteredNumber || '',
-                    isRegisterOwner: profileData.isRegisterOwner || false,
-                });
-            } else {
-                setCompanyData({
-                    companyName: '',
-                    isTradeRegistered: false,
-                    tradeRegisteredNumber: '',
-                    isRegisterOwner: false,
-                });
-            }
-        }
-    }, [profileData]);
+    // Telefon doğrulama (Step 2)
+    const [phoneNumber, setPhoneNumber] = useState('');
+    const [otpCode, setOtpCode] = useState('');
+    const [otpSent, setOtpSent] = useState(false);
 
-    // --- handleUpdate Fonksiyonu ---
-    const handleUpdate = async () => {
+    // Kullanıcı me verilerini çek
+    const fetchUserData = async () => {
         try {
             const token = await AsyncStorage.getItem('token');
+            const resp = await axios.get('https://api.orsetto.ch/api/customer/me', {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            const user = resp.data.data.user;
 
-            // Request gövdesi
+            // Kişisel veriler
+            setFirstName(user.firstName || '');
+            setLastName(user.lastName || '');
+            if (user.birthday) {
+                setBirthday(new Date(user.birthday));
+            } else {
+                setBirthday(new Date());
+            }
+            setGender(user.gender || 'male');
+            setLanguageCode((user.languageCode as any) || 'de'); // type-cast
+            // Adres
+            setCountry(user.country || 'Switzerland');
+            setZipCode(user.zipCode || '');
+            setCity(user.city || '');
+            setStreet(user.street || '');
+            setStreetNumber(user.streetNumber || '');
+            setAddressDetail(user.otherAddressInfo || '');
+
+            // Fatura
+            const hasBilling =
+                user.billingStreet ||
+                user.billingStreetNumber ||
+                user.billingZipCode ||
+                user.billingCity;
+            if (hasBilling) {
+                setDifferentBilling(true);
+                setBillingStreet(user.billingStreet || '');
+                setBillingStreetNumber(user.billingStreetNumber || '');
+                setBillingZipCode(user.billingZipCode || '');
+                setBillingCity(user.billingCity || '');
+                setBillingDetail(user.billingOtherInfo || '');
+            }
+
+            // Gewerbe
+            if (user.isCompany) {
+                setIsCompany(true);
+                setCompanyName(user.companyName || '');
+                setIsTradeRegistered(!!user.isTradeRegistered);
+                setTradeRegisteredNumber(user.tradeRegisteredNumber || '');
+                setIsRegisterOwner(!!user.isRegisterOwner);
+            } else {
+                setIsCompany(false);
+            }
+
+            // Telefon
+            setPhoneNumber(user.mobileNo || '');
+        } catch (error) {
+            console.log(error);
+            Alert.alert('Fehler', 'Konnte Nutzerdaten nicht abrufen');
+        }
+    };
+
+    useEffect(() => {
+        fetchUserData();
+    }, []);
+
+    // ADIM 1 KAYDETME: Bilgileri API'ye gönder
+    const handleSaveProfileData = async () => {
+        try {
+            const token = await AsyncStorage.getItem('token');
             const requestBody = {
                 personal: {
-                    ...personalData,
-                    // Tarihi "YYYY-MM-DD" formatına çevirelim
-                    birthday: personalData.birthday.toISOString().split('T')[0],
+                    firstName,
+                    lastName,
+                    birthday: birthday ? birthday.toISOString().split('T')[0] : null,
+                    gender,
+                    languageCode,
+                    country,
+                    zipCode,
+                    city,
+                    street,
+                    streetNumber,
+                    otherAddressInfo: addressDetail,
                 },
-                // Eğer isCompany = false ise company: null gönderiyoruz
-                company: isCompany ? { ...companyData } : null,
+                company: isCompany
+                    ? {
+                        companyName,
+                        isTradeRegistered,
+                        tradeRegisteredNumber,
+                        isRegisterOwner,
+                    }
+                    : null,
+                billing: differentBilling
+                    ? {
+                        billingStreet,
+                        billingStreetNumber,
+                        billingZipCode,
+                        billingCity,
+                        billingOtherInfo: billingDetail,
+                    }
+                    : null,
             };
 
             await axios.put('https://api.orsetto.ch/api/customer/complete-profile', requestBody, {
@@ -153,608 +169,664 @@ const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
                 },
             });
 
-            onProfileUpdate();
-            onClose();
+            console.log('Profile data saved successfully.');
         } catch (error) {
-            console.error('Update error:', error);
-            Alert.alert('Error', 'Failed to update profile');
+            console.log(error);
+            Alert.alert('Hata', 'Profil kaydedilemedi');
         }
     };
 
-    // Hesap silme
-    const handleDeleteAccount = async () => {
-        Alert.alert(
-            'Delete Account',
-            'Are you sure you want to delete your account? This action cannot be undone.',
-            [
+    // Step 1: Form kaydı + step geçişi
+    const handleGoToStep2 = async () => {
+        await handleSaveProfileData(); // bilgileri API'ye kaydediyoruz
+        setCurrentStep(1);
+    };
+
+    // Step 2: Telefon doğrulama
+    const handleSendOtp = async () => {
+        if (!phoneNumber) {
+            Alert.alert('Hata', 'Telefon numarası giriniz');
+            return;
+        }
+        try {
+            const token = await AsyncStorage.getItem('token');
+            await axios.post(
+                'https://api.orsetto.ch/api/customer/send-otp-sms',
+                { mobileNo: phoneNumber },
                 {
-                    text: 'Cancel',
-                    style: 'cancel',
-                },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            const token = await AsyncStorage.getItem('token');
-                            await axios.delete('https://api.orsetto.ch/api/customer/delete-account', {
-                                headers: {
-                                    Authorization: `Bearer ${token}`,
-                                },
-                            });
-                            onClose();
-                        } catch (error) {
-                            console.error('Delete error:', error);
-                            Alert.alert('Error', 'Failed to delete account');
-                        }
+                    headers: {
+                        Authorization: `Bearer ${token}`,
                     },
-                },
-            ]
+                }
+            );
+            setOtpSent(true);
+            Alert.alert('Başarılı', 'OTP gönderildi');
+        } catch (error) {
+            console.log(error);
+            Alert.alert('Hata', 'OTP gönderilemedi');
+        }
+    };
+
+    const handleVerifyOtp = async () => {
+        if (!otpCode) {
+            Alert.alert('Hata', 'Lütfen OTP kodunu giriniz');
+            return;
+        }
+        try {
+            const token = await AsyncStorage.getItem('token');
+            await axios.post(
+                'https://api.orsetto.ch/api/customer/otp-validation-sms',
+                { otp: parseInt(otpCode, 10) },
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
+            Alert.alert('Başarılı', 'Telefonunuz doğrulandı!');
+            // Dilerseniz handleSaveProfileData() tekrar çağırıp phone'u da update edebilirsiniz.
+            navigation.goBack();
+        } catch (error) {
+            console.log(error);
+            Alert.alert('Hata', 'OTP doğrulama başarısız');
+        }
+    };
+
+    // Step Indicator Top Bar
+    const renderStepBar = () => {
+        return (
+            <View style={styles.stepBar}>
+                <View style={styles.stepItem}>
+                    <Text
+                        style={[
+                            styles.stepTitle,
+                            currentStep === 0 ? styles.stepActive : styles.stepInactive,
+                        ]}
+                    >
+                        Kontodaten
+                    </Text>
+                    <Text
+                        style={[
+                            styles.stepSubtitle,
+                            currentStep === 0 ? styles.stepActive : styles.stepInactive,
+                        ]}
+                    >
+                        Erforderliche Informationen
+                    </Text>
+                </View>
+                <View style={styles.stepItem}>
+                    <Text
+                        style={[
+                            styles.stepTitle,
+                            currentStep === 1 ? styles.stepActive : styles.stepInactive,
+                        ]}
+                    >
+                        SMS-Verifizierung
+                    </Text>
+                    <Text
+                        style={[
+                            styles.stepSubtitle,
+                            currentStep === 1 ? styles.stepActive : styles.stepInactive,
+                        ]}
+                    >
+                        Nächste Stufe
+                    </Text>
+                </View>
+            </View>
         );
     };
 
-    // Basit “aşağı sürükle kapat” için react-native-modal ayarları
-    return (
-        <Modal
-            isVisible={isVisible}
-            style={styles.modal}
-            onSwipeComplete={onClose}
-            swipeDirection={['down']}
-            propagateSwipe
-        >
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.keyboardView}
-            >
-                <View style={[styles.container, { backgroundColor: colors.background }]}>
-                    {/* Üstteki çekme çubuğu */}
-                    <View
-                        style={[styles.dragIndicator, { backgroundColor: colors.dragIndicator }]}
-                    />
-                    <ScrollView
-                        showsVerticalScrollIndicator={false}
-                        keyboardShouldPersistTaps="handled"
-                        nestedScrollEnabled
+    // --- Step 1: FORM EKRANI ---
+    const renderStep1 = () => (
+        <ScrollView style={styles.scrollContent} keyboardShouldPersistTaps="handled">
+            <Text style={styles.pageTitle}>Account vervollständigen</Text>
+
+            {/* Privatperson / Gewerbe Toggle */}
+            <View style={styles.accountTypeRow}>
+                <TouchableOpacity
+                    style={[
+                        styles.accountTypeButton,
+                        !isCompany && styles.accountTypeButtonActive,
+                    ]}
+                    onPress={() => setIsCompany(false)}
+                >
+                    <Text
+                        style={[
+                            styles.accountTypeButtonText,
+                            !isCompany && styles.accountTypeButtonTextActive,
+                        ]}
                     >
-                        <Text style={[styles.title, { color: colors.text }]}>
-                            Account vervollständigen
-                        </Text>
+                        Privatperson
+                    </Text>
+                </TouchableOpacity>
 
-                        {/* Account tipi seçimi */}
-                        <View style={styles.accountTypeRow}>
-                            <TouchableOpacity
-                                style={[
-                                    styles.accountTypeButton,
-                                    !isCompany && styles.activeAccountTypeButton,
-                                ]}
-                                onPress={handleSelectPrivatePerson}
-                            >
-                                <Text
-                                    style={[
-                                        styles.accountTypeText,
-                                        !isCompany && styles.activeAccountTypeText,
-                                    ]}
-                                >
-                                    Privatperson
-                                </Text>
-                            </TouchableOpacity>
+                <TouchableOpacity
+                    style={[
+                        styles.accountTypeButton,
+                        isCompany && styles.accountTypeButtonActive,
+                    ]}
+                    onPress={() => setIsCompany(true)}
+                >
+                    <Text
+                        style={[
+                            styles.accountTypeButtonText,
+                            isCompany && styles.accountTypeButtonTextActive,
+                        ]}
+                    >
+                        Gewerbe
+                    </Text>
+                </TouchableOpacity>
+            </View>
 
-                            <TouchableOpacity
-                                style={[
-                                    styles.accountTypeButton,
-                                    isCompany && styles.activeAccountTypeButton,
-                                ]}
-                                onPress={handleSelectCompany}
-                            >
-                                <Text
-                                    style={[
-                                        styles.accountTypeText,
-                                        isCompany && styles.activeAccountTypeText,
-                                    ]}
-                                >
-                                    Gewerbe
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
+            <Text style={styles.sectionHeader}>Persönliche Informationen</Text>
 
-                        {/* --- PERSÖNLICHE INFORMATIONEN --- */}
-                        <Text style={[styles.sectionHeader, { color: colors.text }]}>
-                            Persönliche Informationen
-                        </Text>
-
-                        {/* Vorname */}
-                        <View style={styles.inputGroup}>
-                            <Text style={[styles.label, { color: colors.text }]}>Vorname</Text>
-                            <TextInput
-                                style={[
-                                    styles.input,
-                                    {
-                                        borderColor: colors.border,
-                                        backgroundColor: colors.background,
-                                        color: colors.text,
-                                    },
-                                ]}
-                                value={personalData.firstName}
-                                onChangeText={(text) =>
-                                    setPersonalData({ ...personalData, firstName: text })
-                                }
-                                placeholder="Vorname eingeben"
-                                placeholderTextColor={colors.placeholder}
-                            />
-                        </View>
-
-                        {/* Nachname */}
-                        <View style={styles.inputGroup}>
-                            <Text style={[styles.label, { color: colors.text }]}>Nachname</Text>
-                            <TextInput
-                                style={[
-                                    styles.input,
-                                    {
-                                        borderColor: colors.border,
-                                        backgroundColor: colors.background,
-                                        color: colors.text,
-                                    },
-                                ]}
-                                value={personalData.lastName}
-                                onChangeText={(text) =>
-                                    setPersonalData({ ...personalData, lastName: text })
-                                }
-                                placeholder="Nachname eingeben"
-                                placeholderTextColor={colors.placeholder}
-                            />
-                        </View>
-
-                        {/* Geburtsdatum */}
-                        <View style={styles.inputGroup}>
-                            <Text style={[styles.label, { color: colors.text }]}>Geburtsdatum</Text>
-                            <TouchableOpacity
-                                style={[
-                                    styles.input,
-                                    {
-                                        borderColor: colors.border,
-                                        backgroundColor: colors.background,
-                                        justifyContent: 'center',
-                                    },
-                                ]}
-                                onPress={() => setDatePickerOpen(true)}
-                            >
-                                <Text style={{ color: colors.text }}>
-                                    {personalData.birthday.toLocaleDateString()}
-                                </Text>
-                            </TouchableOpacity>
-                            <DatePicker
-                                modal
-                                open={isDatePickerOpen}
-                                date={personalData.birthday}
-                                mode="date"
-                                onConfirm={(date) => {
-                                    setDatePickerOpen(false);
-                                    setPersonalData({ ...personalData, birthday: date });
-                                }}
-                                onCancel={() => {
-                                    setDatePickerOpen(false);
-                                }}
-                                theme={isDarkMode ? 'dark' : 'light'}
-                            />
-                        </View>
-
-                        {/* Geschlecht */}
-                        <View style={styles.inputGroup}>
-                            <Text style={[styles.label, { color: colors.text }]}>Geschlecht</Text>
-                            <View
-                                style={[
-                                    styles.pickerContainer,
-                                    {
-                                        borderColor: colors.border,
-                                        backgroundColor: colors.background,
-                                    },
-                                ]}
-                            >
-                                <Picker
-                                    selectedValue={personalData.gender}
-                                    onValueChange={(value) =>
-                                        setPersonalData({ ...personalData, gender: value })
-                                    }
-                                    style={[styles.picker, { color: colors.text }]}
-                                    dropdownIconColor={colors.text}
-                                >
-                                    <Picker.Item label="Männlich" value="male" />
-                                    <Picker.Item label="Weiblich" value="female" />
-                                    <Picker.Item label="Andere" value="other" />
-                                </Picker>
-                            </View>
-                        </View>
-
-                        {/* Kontaktsprache */}
-                        <View style={styles.inputGroup}>
-                            <Text style={[styles.label, { color: colors.text }]}>
-                                Kontaktsprache
-                            </Text>
-                            <View
-                                style={[
-                                    styles.pickerContainer,
-                                    {
-                                        borderColor: colors.border,
-                                        backgroundColor: colors.background,
-                                    },
-                                ]}
-                            >
-                                <Picker
-                                    selectedValue={personalData.languageCode}
-                                    onValueChange={(value) =>
-                                        setPersonalData({ ...personalData, languageCode: value })
-                                    }
-                                    style={[styles.picker, { color: colors.text }]}
-                                    dropdownIconColor={colors.text}
-                                >
-                                    <Picker.Item label="Deutsch" value="de" />
-                                    <Picker.Item label="English" value="en" />
-                                    <Picker.Item label="Français" value="fr" />
-                                    <Picker.Item label="Italiano" value="it" />
-                                </Picker>
-                            </View>
-                        </View>
-
-                        {/* --- ADRESSE --- */}
-                        <Text style={[styles.sectionHeader, { color: colors.text }]}>Adresse</Text>
-                        <View style={styles.inputGroup}>
-                            <Text style={[styles.label, { color: colors.text }]}>Land</Text>
-                            <View
-                                style={[
-                                    styles.pickerContainer,
-                                    {
-                                        borderColor: colors.border,
-                                        backgroundColor: colors.background,
-                                    },
-                                ]}
-                            >
-                                <Picker
-                                    selectedValue={personalData.country}
-                                    onValueChange={(value) =>
-                                        setPersonalData({ ...personalData, country: value })
-                                    }
-                                    style={[styles.picker, { color: colors.text }]}
-                                    dropdownIconColor={colors.text}
-                                >
-                                    <Picker.Item label="Switzerland" value="Switzerland" />
-                                    <Picker.Item label="Germany" value="Germany" />
-                                    <Picker.Item label="Austria" value="Austria" />
-                                </Picker>
-                            </View>
-                        </View>
-
-                        {/* PLZ & Ort */}
-                        <View style={styles.twoColumns}>
-                            <View style={{ flex: 1, marginRight: 5 }}>
-                                <Text style={[styles.label, { color: colors.text }]}>PLZ</Text>
-                                <TextInput
-                                    style={[
-                                        styles.input,
-                                        {
-                                            borderColor: colors.border,
-                                            backgroundColor: colors.background,
-                                            color: colors.text,
-                                        },
-                                    ]}
-                                    value={personalData.zipCode}
-                                    onChangeText={(text) =>
-                                        setPersonalData({ ...personalData, zipCode: text })
-                                    }
-                                    placeholder="PLZ"
-                                    placeholderTextColor={colors.placeholder}
-                                />
-                            </View>
-                            <View style={{ flex: 1, marginLeft: 5 }}>
-                                <Text style={[styles.label, { color: colors.text }]}>Ort</Text>
-                                <TextInput
-                                    style={[
-                                        styles.input,
-                                        {
-                                            borderColor: colors.border,
-                                            backgroundColor: colors.background,
-                                            color: colors.text,
-                                        },
-                                    ]}
-                                    value={personalData.city}
-                                    onChangeText={(text) =>
-                                        setPersonalData({ ...personalData, city: text })
-                                    }
-                                    placeholder="Ort"
-                                    placeholderTextColor={colors.placeholder}
-                                />
-                            </View>
-                        </View>
-
-                        {/* Strasse & Nr. */}
-                        <View style={styles.twoColumns}>
-                            <View style={{ flex: 2, marginRight: 5 }}>
-                                <Text style={[styles.label, { color: colors.text }]}>Strasse</Text>
-                                <TextInput
-                                    style={[
-                                        styles.input,
-                                        {
-                                            borderColor: colors.border,
-                                            backgroundColor: colors.background,
-                                            color: colors.text,
-                                        },
-                                    ]}
-                                    value={personalData.street}
-                                    onChangeText={(text) =>
-                                        setPersonalData({ ...personalData, street: text })
-                                    }
-                                    placeholder="Strasse"
-                                    placeholderTextColor={colors.placeholder}
-                                />
-                            </View>
-                            <View style={{ flex: 1, marginLeft: 5 }}>
-                                <Text style={[styles.label, { color: colors.text }]}>Nr.</Text>
-                                <TextInput
-                                    style={[
-                                        styles.input,
-                                        {
-                                            borderColor: colors.border,
-                                            backgroundColor: colors.background,
-                                            color: colors.text,
-                                        },
-                                    ]}
-                                    value={personalData.streetNumber}
-                                    onChangeText={(text) =>
-                                        setPersonalData({ ...personalData, streetNumber: text })
-                                    }
-                                    placeholder="Nr."
-                                    placeholderTextColor={colors.placeholder}
-                                />
-                            </View>
-                        </View>
-
-                        {/* Weitere Informationen */}
-                        <View style={styles.inputGroup}>
-                            <Text style={[styles.label, { color: colors.text }]}>
-                                Weitere Informationen
-                            </Text>
-                            <TextInput
-                                style={[
-                                    styles.input,
-                                    {
-                                        borderColor: colors.border,
-                                        backgroundColor: colors.background,
-                                        color: colors.text,
-                                    },
-                                ]}
-                                value={personalData.otherAddressInfo}
-                                onChangeText={(text) =>
-                                    setPersonalData({ ...personalData, otherAddressInfo: text })
-                                }
-                                placeholder="z.B. Gebäude, Stockwerk ..."
-                                placeholderTextColor={colors.placeholder}
-                            />
-                        </View>
-
-                        {/* --- GESCHÄFTSINFORMATIONEN (isCompany = true ise) --- */}
-                        {isCompany && (
-                            <>
-                                <Text style={[styles.sectionHeader, { color: colors.text }]}>
-                                    Geschäftsinformationen
-                                </Text>
-
-                                {/* Firmenname */}
-                                <View style={styles.inputGroup}>
-                                    <Text style={[styles.label, { color: colors.text }]}>
-                                        Firmenname
-                                    </Text>
-                                    <TextInput
-                                        style={[
-                                            styles.input,
-                                            {
-                                                borderColor: colors.border,
-                                                backgroundColor: colors.background,
-                                                color: colors.text,
-                                            },
-                                        ]}
-                                        value={companyData.companyName}
-                                        onChangeText={(text) =>
-                                            setCompanyData({ ...companyData, companyName: text })
-                                        }
-                                        placeholder="Firmenname eingeben"
-                                        placeholderTextColor={colors.placeholder}
-                                    />
-                                </View>
-
-                                {/* Handelsregister (switch) */}
-                                <View style={styles.switchGroup}>
-                                    <Text style={[styles.label, { color: colors.text }]}>
-                                        Sind Sie im Handelsregister eingetragen?
-                                    </Text>
-                                    <Switch
-                                        trackColor={{ false: '#767577', true: '#FF6200' }}
-                                        thumbColor={companyData.isTradeRegistered ? '#fff' : '#f4f3f4'}
-                                        ios_backgroundColor="#3e3e3e"
-                                        onValueChange={(value) =>
-                                            setCompanyData({
-                                                ...companyData,
-                                                isTradeRegistered: value,
-                                            })
-                                        }
-                                        value={companyData.isTradeRegistered}
-                                    />
-                                </View>
-
-                                {/* Handelsregister Nr. */}
-                                {companyData.isTradeRegistered && (
-                                    <View style={styles.inputGroup}>
-                                        <Text style={[styles.label, { color: colors.text }]}>
-                                            Handelsregister Nr.
-                                        </Text>
-                                        <TextInput
-                                            style={[
-                                                styles.input,
-                                                {
-                                                    borderColor: colors.border,
-                                                    backgroundColor: colors.background,
-                                                    color: colors.text,
-                                                },
-                                            ]}
-                                            value={companyData.tradeRegisteredNumber}
-                                            onChangeText={(text) =>
-                                                setCompanyData({
-                                                    ...companyData,
-                                                    tradeRegisteredNumber: text,
-                                                })
-                                            }
-                                            placeholder="Registernummer eingeben"
-                                            placeholderTextColor={colors.placeholder}
-                                        />
-                                    </View>
-                                )}
-
-                                {/* Zeichnungsberechtigung (switch) */}
-                                <View style={styles.switchGroup}>
-                                    <Text style={[styles.label, { color: colors.text }]}>
-                                        Sind Sie zeichnungsberechtigt?
-                                    </Text>
-                                    <Switch
-                                        trackColor={{ false: '#767577', true: '#FF6200' }}
-                                        thumbColor={companyData.isRegisterOwner ? '#fff' : '#f4f3f4'}
-                                        ios_backgroundColor="#3e3e3e"
-                                        onValueChange={(value) =>
-                                            setCompanyData({
-                                                ...companyData,
-                                                isRegisterOwner: value,
-                                            })
-                                        }
-                                        value={companyData.isRegisterOwner}
-                                    />
-                                </View>
-                            </>
-                        )}
-
-                        {/* Kaydet / Güncelle Butonu */}
-                        <TouchableOpacity style={styles.updateButton} onPress={handleUpdate}>
-                            <Text style={styles.buttonText}>Weiter</Text>
-                        </TouchableOpacity>
-
-                        {/* Hesap Silme Butonu */}
-                        <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteAccount}>
-                            <Text style={styles.buttonText}>Account löschen</Text>
-                        </TouchableOpacity>
-                    </ScrollView>
+            {/* Vorname / Nachname */}
+            <View style={styles.twoColumns}>
+                <View style={{ flex: 1, marginRight: 5 }}>
+                    <Text style={styles.label}>Vorname</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={firstName}
+                        onChangeText={setFirstName}
+                        placeholder="Vorname"
+                    />
                 </View>
+                <View style={{ flex: 1, marginLeft: 5 }}>
+                    <Text style={styles.label}>Nachname</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={lastName}
+                        onChangeText={setLastName}
+                        placeholder="Nachname"
+                    />
+                </View>
+            </View>
+
+            {/* Geburtstag / Geschlecht */}
+            <View style={styles.twoColumns}>
+                <View style={{ flex: 1, marginRight: 5 }}>
+                    <Text style={styles.label}>Geburtsdatum</Text>
+                    <TouchableOpacity
+                        style={[styles.input, { justifyContent: 'center' }]}
+                        onPress={() => setIsDatePickerOpen(true)}
+                    >
+                        <Text>
+                            {birthday
+                                ? birthday.toLocaleDateString()
+                                : 'TT.MM.JJJJ'}
+                        </Text>
+                    </TouchableOpacity>
+                    <DatePicker
+                        modal
+                        open={isDatePickerOpen}
+                        date={birthday || new Date()}
+                        mode="date"
+                        onConfirm={(date) => {
+                            setIsDatePickerOpen(false);
+                            setBirthday(date);
+                        }}
+                        onCancel={() => {
+                            setIsDatePickerOpen(false);
+                        }}
+                    />
+                </View>
+                <View style={{ flex: 1, marginLeft: 5 }}>
+                    <Text style={styles.label}>Geschlecht</Text>
+                    <View style={[styles.pickerContainer, { zIndex: 2 }]}>
+                        <Picker
+                            selectedValue={gender}
+                            onValueChange={(val) => setGender(val)}
+                            style={styles.picker}
+                        >
+                            <Picker.Item label="Männlich" value="male" />
+                            <Picker.Item label="Weiblich" value="female" />
+                            <Picker.Item label="Andere" value="other" />
+                        </Picker>
+                    </View>
+                </View>
+            </View>
+
+            {/* Kontaktsprache */}
+            <View>
+                <Text style={styles.label}>Kontaktsprache</Text>
+                <View style={[styles.pickerContainer, { zIndex: 2 }]}>
+                    <Picker
+                        selectedValue={languageCode}
+                        onValueChange={(val) => setLanguageCode(val)}
+                        style={styles.picker}
+                    >
+                        <Picker.Item label="Deutsch" value="de" />
+                        <Picker.Item label="English" value="en" />
+                        <Picker.Item label="Français" value="fr" />
+                        <Picker.Item label="Italiano" value="it" />
+                    </Picker>
+                </View>
+            </View>
+
+            <Text style={styles.sectionHeader}>Adresse</Text>
+            {/* Land */}
+            <View>
+                <Text style={styles.label}>Land</Text>
+                <View style={[styles.pickerContainer, { zIndex: 1 }]}>
+                    <Picker
+                        selectedValue={country}
+                        onValueChange={(val) => setCountry(val)}
+                        style={styles.picker}
+                    >
+                        <Picker.Item label="Land auswählen" value="" />
+                        <Picker.Item label="Schweiz" value="Switzerland" />
+                        <Picker.Item label="Deutschland" value="Germany" />
+                        <Picker.Item label="Österreich" value="Austria" />
+                    </Picker>
+                </View>
+            </View>
+
+            {/* PLZ / Ort */}
+            <View style={styles.twoColumns}>
+                <View style={{ flex: 1, marginRight: 5 }}>
+                    <Text style={styles.label}>PLZ</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={zipCode}
+                        onChangeText={setZipCode}
+                        placeholder="PLZ"
+                    />
+                </View>
+                <View style={{ flex: 1, marginLeft: 5 }}>
+                    <Text style={styles.label}>Ort</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={city}
+                        onChangeText={setCity}
+                        placeholder="Ort"
+                    />
+                </View>
+            </View>
+
+            {/* Strasse / Nr */}
+            <View style={styles.twoColumns}>
+                <View style={{ flex: 1.5, marginRight: 5 }}>
+                    <Text style={styles.label}>Strasse</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={street}
+                        onChangeText={setStreet}
+                        placeholder="Strasse"
+                    />
+                </View>
+                <View style={{ flex: 0.8, marginLeft: 5 }}>
+                    <Text style={styles.label}>Hausnummer</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={streetNumber}
+                        onChangeText={setStreetNumber}
+                        placeholder="Nr."
+                    />
+                </View>
+            </View>
+
+            {/* Adresszusatz */}
+            <View style={{ marginBottom: 15 }}>
+                <Text style={styles.label}>Addresszusatz (Optional)</Text>
+                <TextInput
+                    style={styles.input}
+                    value={addressDetail}
+                    onChangeText={setAddressDetail}
+                    placeholder="z.B. Etage, Zimmernummer"
+                />
+            </View>
+
+            {/* Rechnungadresse Toggle */}
+            <View style={styles.toggleRow}>
+                <Text style={{ flex: 1, fontWeight: '500' }}>
+                    Ist die Rechnungsadresse anders als die Hauptadresse?
+                </Text>
+                <Switch
+                    value={differentBilling}
+                    onValueChange={(val) => setDifferentBilling(val)}
+                />
+            </View>
+
+            {/* Fatura adresi alanları */}
+            {differentBilling && (
+                <View style={{ marginTop: 10, backgroundColor: '#fafafa', padding: 10, borderRadius: 6 }}>
+                    <Text style={styles.label}>PLZ</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={billingZipCode}
+                        onChangeText={setBillingZipCode}
+                        placeholder="PLZ"
+                    />
+                    <Text style={styles.label}>Ort</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={billingCity}
+                        onChangeText={setBillingCity}
+                        placeholder="Ort"
+                    />
+                    <Text style={styles.label}>Strasse</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={billingStreet}
+                        onChangeText={setBillingStreet}
+                        placeholder="Strasse"
+                    />
+                    <Text style={styles.label}>Hausnummer</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={billingStreetNumber}
+                        onChangeText={setBillingStreetNumber}
+                        placeholder="Nr."
+                    />
+                    <Text style={styles.label}>Addresszusatz (Optional)</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={billingDetail}
+                        onChangeText={setBillingDetail}
+                        placeholder="z.B. Etage, Zimmernummer"
+                    />
+                </View>
+            )}
+
+            {/* Gewerbe bilgileri */}
+            {isCompany && (
+                <>
+                    <Text style={styles.sectionHeader}>Geschäftsinformationen</Text>
+                    <Text style={styles.label}>Firmenname</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={companyName}
+                        onChangeText={setCompanyName}
+                        placeholder="Firmenname"
+                    />
+                    <View style={styles.toggleRow}>
+                        <Text style={{ flex: 1 }}>Handelsregister?</Text>
+                        <Switch
+                            value={isTradeRegistered}
+                            onValueChange={(val) => setIsTradeRegistered(val)}
+                        />
+                    </View>
+                    {isTradeRegistered && (
+                        <>
+                            <Text style={styles.label}>Registernummer</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={tradeRegisteredNumber}
+                                onChangeText={setTradeRegisteredNumber}
+                                placeholder="CH-ZH-xxxxx"
+                            />
+                        </>
+                    )}
+                    <View style={styles.toggleRow}>
+                        <Text style={{ flex: 1 }}>Zeichnungsberechtigung?</Text>
+                        <Switch
+                            value={isRegisterOwner}
+                            onValueChange={(val) => setIsRegisterOwner(val)}
+                        />
+                    </View>
+                </>
+            )}
+
+            {/* Butonlar */}
+            <View style={styles.buttonRow}>
+                <TouchableOpacity
+                    style={[styles.cancelButton]}
+                    onPress={() => navigation.goBack()}
+                >
+                    <Text style={styles.cancelButtonText}>Abbrechen</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.confirmButton]}
+                    onPress={handleGoToStep2}
+                >
+                    <Text style={styles.confirmButtonText}>Bestätigen und Weiter</Text>
+                </TouchableOpacity>
+            </View>
+        </ScrollView>
+    );
+
+    // --- Step 2: SMS VERIFIKASYON EKRANI ---
+    const renderStep2 = () => (
+        <View style={styles.step2Container}>
+            <Text style={styles.pageTitle}>SMS-Verifizierung</Text>
+            <Text style={styles.helpText}>
+                Bitte geben Sie Ihre Telefonnummer ein und fordern Sie einen Code an.
+            </Text>
+            <Text style={styles.label}>Telefonnummer</Text>
+            <TextInput
+                style={styles.input}
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                placeholder="+41..."
+                keyboardType="phone-pad"
+            />
+
+            {!otpSent ? (
+                <TouchableOpacity style={styles.orangeButton} onPress={handleSendOtp}>
+                    <Text style={styles.orangeButtonText}>Code senden</Text>
+                </TouchableOpacity>
+            ) : (
+                <>
+                    <Text style={styles.label}>Bestätigungscode</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={otpCode}
+                        onChangeText={setOtpCode}
+                        placeholder="z.B. 123456"
+                        keyboardType="number-pad"
+                    />
+                    <TouchableOpacity style={styles.orangeButton} onPress={handleVerifyOtp}>
+                        <Text style={styles.orangeButtonText}>Code bestätigen</Text>
+                    </TouchableOpacity>
+                </>
+            )}
+
+            <View style={styles.buttonRow}>
+                <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={() => setCurrentStep(0)}
+                >
+                    <Text style={styles.cancelButtonText}>Zurück</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={styles.confirmButtonOutline}
+                    onPress={() => navigation.goBack()}
+                >
+                    <Text style={[styles.confirmButtonText, { color: '#FF6200' }]}>Fertig</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+
+    return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+            <View style={styles.brandHeader}>
+                <Text style={styles.brandText}>Orsetto</Text>
+            </View>
+
+            {/* Üst kısım step bar */}
+            <View>
+                {renderStepBar()}
+            </View>
+
+            <KeyboardAvoidingView
+                style={{ flex: 1 }}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            >
+                {currentStep === 0 ? renderStep1() : renderStep2()}
             </KeyboardAvoidingView>
-        </Modal>
+        </SafeAreaView>
     );
 };
 
+export default CompleteProfileModal;
+
 const styles = StyleSheet.create({
-    modal: {
-        margin: 0,
-        justifyContent: 'flex-end',
+    brandHeader: {
+        alignItems: 'center',
+        marginVertical: 8,
     },
-    keyboardView: {
-        flex: 1,
-        justifyContent: 'flex-end',
-    },
-    container: {
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        padding: 20,
-        maxHeight: '90%',
-    },
-    dragIndicator: {
-        width: 40,
-        height: 4,
-        borderRadius: 2,
-        alignSelf: 'center',
-        marginBottom: 10,
-    },
-    title: {
-        fontSize: 24,
+    brandText: {
+        fontSize: 28,
         fontWeight: 'bold',
-        marginBottom: 20,
-        textAlign: 'center',
+        color: '#FF6200',
+    },
+    stepBar: {
+        flexDirection: 'row',
+        backgroundColor: '#f7f7f7',
+        paddingVertical: 10,
+        justifyContent: 'space-around',
+    },
+    stepItem: {
+        alignItems: 'center',
+    },
+    stepTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    stepSubtitle: {
+        fontSize: 12,
+    },
+    stepActive: {
+        color: '#FF6200',
+    },
+    stepInactive: {
+        color: '#999',
+    },
+
+    scrollContent: {
+        flex: 1,
+        padding: 20,
+    },
+    pageTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        marginBottom: 15,
     },
     accountTypeRow: {
         flexDirection: 'row',
-        justifyContent: 'center',
         marginBottom: 20,
     },
     accountTypeButton: {
         flex: 1,
-        padding: 10,
-        marginHorizontal: 5,
+        borderColor: '#ddd',
         borderWidth: 1,
-        borderColor: '#dddddd',
         borderRadius: 8,
+        paddingVertical: 12,
+        marginHorizontal: 5,
         alignItems: 'center',
     },
-    activeAccountTypeButton: {
-        backgroundColor: '#008080',
-        borderColor: '#008080',
+    accountTypeButtonActive: {
+        backgroundColor: '#FF6200',
+        borderColor: '#FF6200',
     },
-    accountTypeText: {
-        color: '#333',
+    accountTypeButtonText: {
+        color: '#666',
         fontWeight: '600',
     },
-    activeAccountTypeText: {
+    accountTypeButtonTextActive: {
         color: '#fff',
     },
+
     sectionHeader: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: 'bold',
-        marginBottom: 10,
-        marginTop: 15,
-    },
-    inputGroup: {
-        marginBottom: 15,
+        marginTop: 10,
+        marginBottom: 8,
     },
     label: {
-        fontSize: 15,
-        marginBottom: 5,
+        fontSize: 14,
+        fontWeight: '600',
+        marginBottom: 4,
     },
     input: {
         borderWidth: 1,
+        borderColor: '#ddd',
         borderRadius: 8,
-        padding: 10,
-        fontSize: 15,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        marginBottom: 10,
+        backgroundColor: '#fff',
     },
     pickerContainer: {
         borderWidth: 1,
+        borderColor: '#ddd',
         borderRadius: 8,
+        marginBottom: 10,
         overflow: 'hidden',
     },
     picker: {
-        height: 45,
-        width: '100%',
+        height: 44,
     },
     twoColumns: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         marginBottom: 15,
     },
-    switchGroup: {
+    toggleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    buttonRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
+        marginTop: 10,
+    },
+    cancelButton: {
+        flex: 1,
+        marginRight: 5,
+        backgroundColor: '#ccc',
+        paddingVertical: 12,
+        borderRadius: 6,
+        alignItems: 'center',
+    },
+    cancelButtonText: {
+        color: '#fff',
+        fontWeight: '600',
+    },
+    confirmButton: {
+        flex: 1,
+        marginLeft: 5,
+        backgroundColor: '#FF6200',
+        paddingVertical: 12,
+        borderRadius: 6,
+        alignItems: 'center',
+    },
+    confirmButtonText: {
+        color: '#fff',
+        fontWeight: '600',
+    },
+    confirmButtonOutline: {
+        flex: 1,
+        marginLeft: 5,
+        borderColor: '#FF6200',
+        borderWidth: 1,
+        paddingVertical: 12,
+        borderRadius: 6,
+        alignItems: 'center',
+    },
+
+    // Step 2
+    step2Container: {
+        flex: 1,
+        padding: 20,
+    },
+    helpText: {
+        fontSize: 14,
+        color: '#666',
+        marginBottom: 15,
+    },
+    orangeButton: {
+        backgroundColor: '#FF6200',
+        height: 50,
+        borderRadius: 6,
+        justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 15,
     },
-    updateButton: {
-        backgroundColor: '#008080',
-        padding: 15,
-        borderRadius: 8,
-        alignItems: 'center',
-        marginVertical: 10,
-    },
-    deleteButton: {
-        backgroundColor: '#FF0000',
-        padding: 15,
-        borderRadius: 8,
-        alignItems: 'center',
-        marginVertical: 10,
-    },
-    buttonText: {
-        color: 'white',
+    orangeButtonText: {
+        color: '#fff',
+        fontWeight: '600',
         fontSize: 16,
-        fontWeight: 'bold',
     },
 });
-
-export default CompleteProfileModal;

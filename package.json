@@ -32,6 +32,7 @@
     "react-native-responsive-fontsize": "^0.5.1",
     "react-native-safe-area-context": "^5.0.0",
     "react-native-screens": "^4.4.0",
+    "react-native-select-dropdown": "^4.0.1",
     "react-native-video": "^6.9.1",
     "react-redux": "^9.2.0",
     "redux": "^5.0.1",

@@ -18,7 +18,6 @@ import { Picker } from '@react-native-picker/picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import moment from 'moment';
 import { useNavigation } from '@react-navigation/native';
-import CompleteProfileModal from '../CompleteProfile';
 import { logout } from '../../../redux/slices/authSlice.ts';
 import { useDispatch } from 'react-redux';
 
@@ -726,7 +725,7 @@ const AccountDetails = () => {
         if (phoneOnlyMissing) {
             openCompletePhoneModal();
         } else {
-            setModalVisible(true);
+            navigation.navigate('CompleteProfile')
         }
     };
 
@@ -1687,17 +1686,6 @@ const AccountDetails = () => {
                         </View>
                     </View>
                 </Modal>
-
-                {/* Tam profil doldurma modalı */}
-                <CompleteProfileModal
-                    isVisible={isModalVisible}
-                    onClose={() => setModalVisible(false)}
-                    onProfileUpdate={() => {
-                        fetchUserData();
-                        setModalVisible(false);
-                    }}
-                    profileData={profileData}
-                />
             </SafeAreaView>
         </KeyboardAvoidingView>
     );
